@@ -8,16 +8,61 @@ Basing off of the Geema 3 technical report, I will analyze and compare different
 
 The Gemma 3 family consists of four model sizes, each with increasing capabilities and resource requirements:
 
-| Model | Parameters | Vision Encoder | Total Size | Context Length | Key Capabilities |
-|-------|------------|---------------|------------|----------------|------------------|
-| Gemma 3-1B | 698M language + 302M embeddings | None | 1B | 32K tokens | Basic text generation; no vision capabilities, extrmely lightweight |
-| Gemma 3-4B | 3.2B language + 675M embeddings + 417M vision | SigLIP | 4.3B | 128K tokens | Multimodal with good balance of performance and efficiency |
-| Gemma 3-12B | 10.8B language + 1B embeddings + 417M vision | SigLIP | 12.2B | 128K tokens | Strong performance across all tasks with reasonable resource needs |
-| Gemma 3-27B | 25.6B language + 1.4B embeddings + 417M vision | SigLIP | 27.4B | 128K tokens | Best performance; comparable to Gemini 1.5 Pro on benchmarks |
+| Model       | Parameters                                         | Vision Encoder | Total Size | Context Length | Key Capabilities                                                    |
+| ----------- | -------------------------------------------------- | -------------- | ---------- | -------------- | ------------------------------------------------------------------- |
+| Gemma 3-1B  | 698M non-embedding + 302M embedding                | None           | 1B         | 32K tokens     | Basic text generation; no vision capabilities, extrmely lightweight |
+| Gemma 3-4B  | 3.2B non-embedding + 675M embedding + 417M vision  | SigLIP         | 4.3B       | 128K tokens    | Multimodal with good balance of performance and efficiency          |
+| Gemma 3-12B | 10.8B non-embedding + 1B embedding + 417M vision   | SigLIP         | 12.2B      | 128K tokens    | Strong performance across all tasks with reasonable resource needs  |
+| Gemma 3-27B | 25.6B non-embedding + 1.4B embedding + 417M vision | SigLIP         | 27.4B      | 128K tokens    | Best performance; comparable to Gemini 1.5 Pro on benchmarks        |
+
+From this chart, the 1B model does not support vision encoding, thus it is limited to pure text-based tasks. As such, in order to fulloy demonstrate the capability demonstrated by the Gemma models, I will be moving forward with the other three models.
 
 ### Performance Analysis
 
+#### Coding Performance
+
+| Model | HumanEval | MBPP  | LiveCodeBench |
+| ----- | --------- | ----- | ------------- |
+| 1B    | 41.5%     | 35.2% | 5.0%          |
+| 4B    | 71.3%     | 63.2% | 23.0%         |
+| 12B   | 85.4%     | 73.0% | 32.0%         |
+| 27B   | 87.8%     | 74.4% | 39.0%         |
+
+The 12B and 27B models show strong coding capabilities, with 27B achieving the highest accuracy across all code-focused benchmarks. These results indicate that both are well-suited for code generation, debugging assistance, and live programming support. The 4B model, while not at the top, still demonstrates reliable code performance and may serve well in resource-constrained environments.
+
+#### Research Capabilities
+
+| Model | MMLU  | MATH  | GSM8K | GPQA Diamond |
+| ----- | ----- | ----- | ----- | ------------ |
+| 1B    | 38.8% | 48.0% | 62.8% | 19.2%        |
+| 4B    | 58.1% | 75.6% | 89.2% | 30.8%        |
+| 12B   | 71.9% | 83.8% | 94.4% | 40.9%        |
+| 27B   | 76.9% | 89.0% | 95.9% | 42.4%        |
+
+In tasks requiring factual recall, mathematical reasoning, and complex QA, performance improves significantly with scale. The 27B model again leads across all metrics.
+
+### Hardware Requirements
+
+| Model   | bf16 | Int4 | Int4 (Blocks=32) | SFP8 |
+| ------- | ---- | ---- | ---------------- | ---- |
+| **1B**  | 2.0  | 0.5  | 0.7              | 1.0  |
+| +KV     | 2.9  | 1.4  | 1.6              | 1.9  |
+| **4B**  | 8.0  | 2.6  | 2.9              | 4.4  |
+| +KV     | 12.7 | 7.3  | 7.6              | 9.1  |
+| **12B** | 24.0 | 6.6  | 7.1              | 12.4 |
+| +KV     | 38.9 | 21.5 | 22.0             | 27.3 |
+| **27B** | 54.0 | 14.1 | 15.3             | 27.4 |
+| +KV     | 72.7 | 32.8 | 34.0             | 46.1 |
+
+These are the required VRAM sizes (in GB) for running the Gemma 3 models under different precision formats and with or without Key-Value (KV) caching. For this application, I will be considering Key-Value pairing as essential for optimizing inference latency and enabling efficient long-context performance; since those are important factors in providing a smooth and responsive user experience in real-time chat scenarios.
+
 ### HuggingFace Spaces Resources
+
+Since I am deploying on HuggingFace Spaces, I will be utilizing their **ZeroGPU**, which offers access to high-performance virtual GPUs, particularly the Nvidia H200 with 70GB of VRAM. This configuration provides ample memory and compute power to run large-scale language models with Key-Value (KV) caching, long context windows, and multimodal inference, all with low latency and high throughput.
+
+### Final Choice
+
+For my final choice, in order to fully demonstrate the capabilities of the Gemma 3 family, I have selected the Gemma 3-27B model with Key-Value caching enabled. This setup leverages the full compute and memory bandwidth of the NVIDIA H200 (70GB VRAM) provided by HuggingFace's ZeroGPU environment. Overall, this configuration strikes a strong balance between maximum model capability and inference efficiency, ensuring that the demo remains smooth, accurate, and production-ready — even when scaling to complex or multimodal inputs.
 
 ## User Research
 
