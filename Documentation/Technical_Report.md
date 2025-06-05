@@ -62,7 +62,7 @@ Since I am deploying on HuggingFace Spaces, I will be utilizing their **ZeroGPU*
 
 ### Final Choice
 
-For my final choice, in order to fully demonstrate the capabilities of the Gemma 3 family, I have selected the Gemma 3-27B model with Key-Value caching enabled. This setup leverages the full compute and memory bandwidth of the NVIDIA H200 (70GB VRAM) provided by HuggingFace's ZeroGPU environment. Overall, this configuration strikes a strong balance between maximum model capability and inference efficiency, ensuring that the demo remains smooth, accurate, and production-ready — even when scaling to complex or multimodal inputs.
+For my final choice, in order to fully demonstrate the capabilities of the Gemma 3 family, I have selected the Gemma 3-27B model with Key-Value caching enabled. This setup leverages the full compute and memory bandwidth of the NVIDIA H200 (70GB VRAM) provided by HuggingFace's ZeroGPU environment. Overall, this configuration strikes a strong balance between maximum model capability and inference efficiency, ensuring that the demo remains smooth, accurate, and production-ready—even when scaling to complex or multimodal inputs.
 
 ## User Research
 
