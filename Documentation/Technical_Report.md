@@ -66,12 +66,39 @@ For my final choice, in order to fully demonstrate the capabilities of the Gemma
 
 ## User Research
 
+To ensure this demo is intuitive and useful, I will identify key user types, their goals, and pain points. This informs both the interface design and prompt engineering strategy.
+
 ### User Profiles
+
+Here, I will be listing some common user types and typical use cases for the demo:
+
+1. Student Researchers
+
+   - Demographics: University students
+   - Needs: Literature research assistance, data analysis help, visualization of complex concepts
+
+2. Software Developers
+
+   - Demographics: Professional developers across experience levels
+   - Needs: Code generation, debugging assistance, API documentation exploration
+
+3. Content Creators
+
+   - Demographics: Writers, marketers, social media managers
+   - Needs: Creative ideation, content improvement, image analysis and description
+
+4. General Knowledge Seekers
+   - Demographics: Diverse, general public
+   - Needs: Factual information, explanations of complex topics, assistance with everyday tasks
 
 ### User Stories
 
-## Technical Architecture
+- As a student researcher, I want to input a research question and receive a concise, well-referenced summary so that I can quickly assess relevant sources.
 
-### Technical Stack
+- As a software developer, I want to submit code and receive debugging suggestions and performance tips so I can improve my code faster without switching tabs.
 
-### UI Interface
+- As a content creator, I want to upload an image and get a tone-aligned caption with hashtags so I can streamline my content workflow for social media.
+
+- As a general knowledge seeker, I want to ask layered questions in a natural language format so I can learn about complex topics step by step.
+
+### Engineering Tasks
