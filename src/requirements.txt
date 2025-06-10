@@ -1,0 +1,5 @@
+torch
+spaces
+gradio
+transformers==4.50.2
+accelerate
