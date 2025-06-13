@@ -27,6 +27,7 @@ model = Gemma3ForConditionalGeneration.from_pretrained(
 )
 
 def get_frames(video_path: str, max_images: int) -> list[tuple[Image.Image, float]]:
+    frames: list[tuple[Image.Image, float]] = []
     capture = cv2.VideoCapture(video_path)
     if not capture.isOpened():
         raise ValueError(f"Could not open video file: {video_path}")
@@ -35,7 +36,6 @@ def get_frames(video_path: str, max_images: int) -> list[tuple[Image.Image, floa
     total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
 
     frame_interval = max(total_frames // max_images, 1)
-    frames: list[tuple[Image.Image, float]] = []
 
     for i in range(0, min(total_frames, max_images * frame_interval), frame_interval):
         if len(frames) >= max_images:
