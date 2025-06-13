@@ -11,8 +11,6 @@ import cv2
 from loguru import logger
 from PIL import Image
 
-MAX_NUM_IMAGES = 6
-
 dotenv_path = find_dotenv()
 
 load_dotenv(dotenv_path)
@@ -28,7 +26,7 @@ model = Gemma3ForConditionalGeneration.from_pretrained(
     attn_implementation="eager",
 )
 
-def get_frames(video_path: str) -> list[tuple[Image.Image, float]]:
+def get_frames(video_path: str, max_images: int) -> list[tuple[Image.Image, float]]:
     capture = cv2.VideoCapture(video_path)
     if not capture.isOpened():
         raise ValueError(f"Could not open video file: {video_path}")
@@ -36,11 +34,11 @@ def get_frames(video_path: str) -> list[tuple[Image.Image, float]]:
     fps = capture.get(cv2.CAP_PROP_FPS)
     total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    frame_interval = max(total_frames // MAX_NUM_IMAGES, 1)
+    frame_interval = max(total_frames // max_images, 1)
     frames: list[tuple[Image.Image, float]] = []
 
-    for i in range(0, min(total_frames, MAX_NUM_IMAGES * frame_interval), frame_interval):
-        if len(frames) >= MAX_NUM_IMAGES:
+    for i in range(0, min(total_frames, max_images * frame_interval), frame_interval):
+        if len(frames) >= max_images:
             break
 
         capture.set(cv2.CAP_PROP_POS_FRAMES, i)
