@@ -1,8 +1,13 @@
 import torch
 from huggingface_hub import login
 from collections.abc import Iterator
-from transformers import Gemma3ForConditionalGeneration, TextIteratorStreamer, Gemma3Processor
+from transformers import (
+    Gemma3ForConditionalGeneration,
+    TextIteratorStreamer,
+    Gemma3Processor,
+)
 import spaces
+import tempfile
 from threading import Thread
 import gradio as gr
 import os
@@ -26,21 +31,21 @@ model = Gemma3ForConditionalGeneration.from_pretrained(
     attn_implementation="eager",
 )
 
+
 def get_frames(video_path: str, max_images: int) -> list[tuple[Image.Image, float]]:
     frames: list[tuple[Image.Image, float]] = []
     capture = cv2.VideoCapture(video_path)
     if not capture.isOpened():
         raise ValueError(f"Could not open video file: {video_path}")
-    
+
     fps = capture.get(cv2.CAP_PROP_FPS)
     total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
 
     frame_interval = max(total_frames // max_images, 1)
+    max_position = min(total_frames, max_images * frame_interval)
+    i = 0
 
-    for i in range(0, min(total_frames, max_images * frame_interval), frame_interval):
-        if len(frames) >= max_images:
-            break
-
+    while i < max_position and len(frames) < max_images:
         capture.set(cv2.CAP_PROP_POS_FRAMES, i)
         success, image = capture.read()
         if success:
@@ -49,5 +54,21 @@ def get_frames(video_path: str, max_images: int) -> list[tuple[Image.Image, floa
             timestamp = round(i / fps, 2)
             frames.append((pil_image, timestamp))
 
+        i += frame_interval
+
     capture.release()
     return frames
+
+def process_video(video_path: str, max_images: int) -> list[dict]:
+    result_content = []
+    # TODO: Change max_image to slider
+    frames = get_frames(video_path, max_images)
+    # Take frame and attach to result_content with timestamp
+    for frame in frames:
+        image, timestamp = frame
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
+            image.save(temp_file.name)
+            result_content.append({"type": "text", "text": f"Frame {timestamp}:"})
+            result_content.append({"type": "image", "url": temp_file.name})
+    logger.debug(f"Processed {len(frames)} frames from video {video_path} with frames {result_content}")
+    return result_content
