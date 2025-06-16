@@ -63,7 +63,6 @@ def process_video(video_path: str, max_images: int) -> list[dict]:
     result_content = []
     # TODO: Change max_image to slider
     frames = get_frames(video_path, max_images)
-    # Take frame and attach to result_content with timestamp
     for frame in frames:
         image, timestamp = frame
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
@@ -72,3 +71,15 @@ def process_video(video_path: str, max_images: int) -> list[dict]:
             result_content.append({"type": "image", "url": temp_file.name})
     logger.debug(f"Processed {len(frames)} frames from video {video_path} with frames {result_content}")
     return result_content
+
+def process_user_input(message: dict, max_images: int) -> list[dict]:
+    if not message["files"]:
+        return [{"type": "text", "text": message["text"]}]
+
+    if message["files"][0].endswith(".mp4"):
+        return [{"type": "text", "text": message["text"]}, *process_video(message["files"][0], max_images)]
+
+    return [
+        {"type": "text", "text": message["text"]},
+        *[{"type": "image", "url": path} for path in message["files"]],
+    ]
