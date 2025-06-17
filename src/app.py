@@ -59,6 +59,7 @@ def get_frames(video_path: str, max_images: int) -> list[tuple[Image.Image, floa
     capture.release()
     return frames
 
+
 def process_video(video_path: str, max_images: int) -> list[dict]:
     result_content = []
     # TODO: Change max_image to slider
@@ -69,17 +70,53 @@ def process_video(video_path: str, max_images: int) -> list[dict]:
             image.save(temp_file.name)
             result_content.append({"type": "text", "text": f"Frame {timestamp}:"})
             result_content.append({"type": "image", "url": temp_file.name})
-    logger.debug(f"Processed {len(frames)} frames from video {video_path} with frames {result_content}")
+    logger.debug(
+        f"Processed {len(frames)} frames from video {video_path} with frames {result_content}"
+    )
     return result_content
+
 
 def process_user_input(message: dict, max_images: int) -> list[dict]:
     if not message["files"]:
         return [{"type": "text", "text": message["text"]}]
 
     if message["files"][0].endswith(".mp4"):
-        return [{"type": "text", "text": message["text"]}, *process_video(message["files"][0], max_images)]
+        return [
+            {"type": "text", "text": message["text"]},
+            *process_video(message["files"][0], max_images),
+        ]
 
     return [
         {"type": "text", "text": message["text"]},
         *[{"type": "image", "url": path} for path in message["files"]],
     ]
+
+
+def process_history(history: list[dict]) -> list[dict]:
+    messages = []
+    user_content_buffer = []
+
+    for item in history:
+        if item["role"] == "assistant":
+            if user_content_buffer:
+                messages.append({"role": "user", "content": user_content_buffer})
+                user_content_buffer = []
+
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": item["content"]}],
+                }
+            )
+        else:
+            content = item["content"]
+            user_content_buffer.append(
+                {"type": "text", "text": content}
+                if isinstance(content, str)
+                else {"type": "image", "url": content[0]}
+            )
+
+    if user_content_buffer:
+        messages.append({"role": "user", "content": user_content_buffer})
+
+    return messages
