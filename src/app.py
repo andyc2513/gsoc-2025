@@ -94,13 +94,13 @@ def process_user_input(message: dict, max_images: int) -> list[dict]:
 
 def process_history(history: list[dict]) -> list[dict]:
     messages = []
-    user_content_buffer = []
+    content_buffer = []
 
     for item in history:
         if item["role"] == "assistant":
-            if user_content_buffer:
-                messages.append({"role": "user", "content": user_content_buffer})
-                user_content_buffer = []
+            if content_buffer:
+                messages.append({"role": "user", "content": content_buffer})
+                content_buffer = []
 
             messages.append(
                 {
@@ -110,13 +110,51 @@ def process_history(history: list[dict]) -> list[dict]:
             )
         else:
             content = item["content"]
-            user_content_buffer.append(
+            content_buffer.append(
                 {"type": "text", "text": content}
                 if isinstance(content, str)
                 else {"type": "image", "url": content[0]}
             )
 
-    if user_content_buffer:
-        messages.append({"role": "user", "content": user_content_buffer})
+    if content_buffer:
+        messages.append({"role": "user", "content": content_buffer})
 
     return messages
+
+
+@spaces.GPU(duration=120)
+def run(
+    message: dict, history: list[dict], system_prompt: str, max_new_tokens: int = 512
+) -> Iterator[str]:
+
+    messages = []
+    if system_prompt:
+        messages.append(
+            {"role": "system", "content": [{"type": "text", "text": system_prompt}]}
+        )
+    messages.extend(process_history(history))
+    messages.append({"role": "user", "content": process_user_input(message)})
+
+    inputs = input_processor.apply_chat_template(
+        messages,
+        add_generation_prompt=True,
+        tokenize=True,
+        return_dict=True,
+        return_tensors="pt",
+    ).to(device=model.device, dtype=torch.bfloat16)
+
+    streamer = TextIteratorStreamer(
+        input_processor, timeout=30.0, skip_prompt=True, skip_special_tokens=True
+    )
+    generate_kwargs = dict(
+        inputs,
+        streamer=streamer,
+        max_new_tokens=max_new_tokens,
+    )
+    t = Thread(target=model.generate, kwargs=generate_kwargs)
+    t.start()
+
+    output = ""
+    for delta in streamer:
+        output += delta
+        yield output
