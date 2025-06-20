@@ -5,7 +5,7 @@ from PIL import Image
 from pathlib import Path
 import tempfile
 
-from src.app import get_frames, process_video, process_user_input
+from src.app import get_frames, process_video, process_user_input, process_history
 
 # Get the project root directory
 ROOT_DIR = Path(__file__).parent.parent
@@ -234,3 +234,136 @@ def test_process_user_input_max_images_effect():
     assert frames_few <= 2
     assert frames_many <= 5
     assert frames_few < frames_many
+    
+def test_empty_history():
+    """Test processing empty history."""
+    history = []
+    result = process_history(history)
+    assert result == []
+
+def test_single_user_message_text():
+    """Test processing a single user text message."""
+    history = [
+        {"role": "user", "content": "Hello, AI!"}
+    ]
+    
+    result = process_history(history)
+    
+    assert len(result) == 1
+    assert result[0]["role"] == "user"
+    assert len(result[0]["content"]) == 1
+    assert result[0]["content"][0]["type"] == "text"
+    assert result[0]["content"][0]["text"] == "Hello, AI!"
+
+def test_single_user_message_image():
+    """Test processing a single user image message."""
+    history = [
+        {"role": "user", "content": ["path/to/image.jpg"]}
+    ]
+    
+    result = process_history(history)
+    
+    assert len(result) == 1
+    assert result[0]["role"] == "user"
+    assert len(result[0]["content"]) == 1
+    assert result[0]["content"][0]["type"] == "image"
+    assert result[0]["content"][0]["url"] == "path/to/image.jpg"
+
+def test_single_assistant_message():
+    """Test processing a single assistant message."""
+    history = [
+        {"role": "assistant", "content": "I'm an AI assistant."}
+    ]
+    
+    result = process_history(history)
+    
+    assert len(result) == 1
+    assert result[0]["role"] == "assistant"
+    assert len(result[0]["content"]) == 1
+    assert result[0]["content"][0]["type"] == "text"
+    assert result[0]["content"][0]["text"] == "I'm an AI assistant."
+
+def test_alternating_messages():
+    """Test processing alternating user and assistant messages."""
+    history = [
+        {"role": "user", "content": "Hello"},
+        {"role": "assistant", "content": "Hi there"},
+        {"role": "user", "content": "How are you?"},
+        {"role": "assistant", "content": "I'm doing well, thanks!"}
+    ]
+    
+    result = process_history(history)
+    
+    assert len(result) == 4
+    assert [item["role"] for item in result] == ["user", "assistant", "user", "assistant"]
+    assert result[0]["content"][0]["text"] == "Hello"
+    assert result[1]["content"][0]["text"] == "Hi there"
+    assert result[2]["content"][0]["text"] == "How are you?"
+    assert result[3]["content"][0]["text"] == "I'm doing well, thanks!"
+
+def test_consecutive_user_messages():
+    """Test processing consecutive user messages - they should be grouped."""
+    history = [
+        {"role": "user", "content": "First message"},
+        {"role": "user", "content": "Second message"},
+        {"role": "user", "content": "Third message"},
+        {"role": "assistant", "content": "I got your messages"}
+    ]
+    
+    result = process_history(history)
+    
+    # Should be combined into a single user message with multiple content items
+    assert len(result) == 2
+    assert result[0]["role"] == "user"
+    assert len(result[0]["content"]) == 3
+    assert [item["text"] for item in result[0]["content"]] == [
+        "First message", "Second message", "Third message"
+    ]
+
+def test_mixed_content_types():
+    """Test processing mixed content types (text and images)."""
+    history = [
+        {"role": "user", "content": "Look at this:"},
+        {"role": "user", "content": ["image.jpg"]},
+        {"role": "assistant", "content": "Nice image!"}
+    ]
+    
+    result = process_history(history)
+    
+    assert len(result) == 2
+    assert result[0]["role"] == "user"
+    assert len(result[0]["content"]) == 2
+    assert result[0]["content"][0]["type"] == "text"
+    assert result[0]["content"][1]["type"] == "image"
+
+def test_ending_with_user_messages():
+    """Test history that ends with user messages."""
+    history = [
+        {"role": "user", "content": "Hello"},
+        {"role": "assistant", "content": "Hi there"},
+        {"role": "user", "content": "Another question"},
+        {"role": "user", "content": ["image.png"]}
+    ]
+    
+    result = process_history(history)
+    
+    assert len(result) == 3
+    assert result[2]["role"] == "user"
+    assert len(result[2]["content"]) == 2
+    assert result[2]["content"][0]["type"] == "text"
+    assert result[2]["content"][1]["type"] == "image"
+
+def test_empty_messages():
+    """Test handling of empty content messages."""
+    history = [
+        {"role": "user", "content": ""},
+        {"role": "assistant", "content": ""},
+        {"role": "user", "content": "Hello"}
+    ]
+    
+    result = process_history(history)
+    
+    assert len(result) == 3
+    assert result[0]["content"][0]["text"] == ""
+    assert result[1]["content"][0]["text"] == ""
+    assert result[2]["content"][0]["text"] == "Hello"
