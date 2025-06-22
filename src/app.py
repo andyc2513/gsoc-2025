@@ -80,7 +80,7 @@ def process_user_input(message: dict, max_images: int) -> list[dict]:
     if not message["files"]:
         return [{"type": "text", "text": message["text"]}]
 
-    if message["files"][0].endswith(".mp4"):
+    if message["files"][0].endswith(".mp4") or message["files"][0].endswith(".mov"):
         return [
             {"type": "text", "text": message["text"]},
             *process_video(message["files"][0], max_images),
