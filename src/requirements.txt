@@ -4,3 +4,5 @@ gradio
 transformers==4.50.2
 accelerate
 pytest
+python-dotenv
+opencv-python
