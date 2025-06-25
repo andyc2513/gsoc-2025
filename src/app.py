@@ -62,7 +62,6 @@ def get_frames(video_path: str, max_images: int) -> list[tuple[Image.Image, floa
 
 def process_video(video_path: str, max_images: int) -> list[dict]:
     result_content = []
-    # TODO: Change max_image to slider
     frames = get_frames(video_path, max_images)
     for frame in frames:
         image, timestamp = frame
@@ -124,7 +123,11 @@ def process_history(history: list[dict]) -> list[dict]:
 
 @spaces.GPU(duration=120)
 def run(
-    message: dict, history: list[dict], system_prompt: str, max_new_tokens: int = 512
+    message: dict,
+    history: list[dict],
+    system_prompt: str,
+    max_new_tokens: int,
+    max_images: int,
 ) -> Iterator[str]:
 
     messages = []
@@ -133,7 +136,9 @@ def run(
             {"role": "system", "content": [{"type": "text", "text": system_prompt}]}
         )
     messages.extend(process_history(history))
-    messages.append({"role": "user", "content": process_user_input(message)})
+    messages.append(
+        {"role": "user", "content": process_user_input(message, max_images)}
+    )
 
     inputs = input_processor.apply_chat_template(
         messages,
@@ -158,3 +163,25 @@ def run(
     for delta in streamer:
         output += delta
         yield output
+
+
+demo = gr.ChatInterface(
+    fn=run,
+    type="messages",
+    chatbot=gr.Chatbot(type="messages", scale=1, allow_tags=["image"]),
+    textbox=gr.MultimodalTextbox(
+        file_types=["image", ".mp4"], file_count="multiple", autofocus=True
+    ),
+    multimodal=True,
+    additional_inputs=[
+        gr.Textbox(label="System Prompt", value="You are a helpful assistant."),
+        gr.Slider(
+            label="Max New Tokens", minimum=100, maximum=2000, step=10, value=700
+        ),
+        gr.Slider(label="Max Images", minimum=1, maximum=4, step=1, value=2),
+    ],
+    stop_btn=False,
+)
+
+if __name__ == "__main__":
+    demo.launch()
