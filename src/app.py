@@ -129,6 +129,11 @@ def run(
     max_new_tokens: int,
     max_images: int,
 ) -> Iterator[str]:
+    
+    logger.debug(
+        f"Received message: {message}, history: {history}, system_prompt: {system_prompt}, "
+        f"max_new_tokens: {max_new_tokens}, max_images: {max_images}"
+    )
 
     messages = []
     if system_prompt:
