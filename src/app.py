@@ -79,16 +79,15 @@ def process_user_input(message: dict, max_images: int) -> list[dict]:
     if not message["files"]:
         return [{"type": "text", "text": message["text"]}]
 
-    if message["files"][0].endswith(".mp4") or message["files"][0].endswith(".mov"):
-        return [
-            {"type": "text", "text": message["text"]},
-            *process_video(message["files"][0], max_images),
-        ]
+    result_content = [{"type": "text", "text": message["text"]}]
 
-    return [
-        {"type": "text", "text": message["text"]},
-        *[{"type": "image", "url": path} for path in message["files"]],
-    ]
+    for file_path in message["files"]:
+        if file_path.endswith((".mp4", ".mov")):
+            result_content = [*result_content, *process_video(file_path, max_images)]
+        else:
+            result_content = [*result_content, {"type": "image", "url": file_path}]
+
+    return result_content
 
 
 def process_history(history: list[dict]) -> list[dict]:
@@ -129,10 +128,10 @@ def run(
     max_new_tokens: int,
     max_images: int,
 ) -> Iterator[str]:
-    
+
     logger.debug(
-        f"Received message: {message}, history: {history}, system_prompt: {system_prompt}, "
-        f"max_new_tokens: {max_new_tokens}, max_images: {max_images}"
+        f"\n message: {message} \n history: {history} \n system_prompt: {system_prompt} \n "
+        f"max_new_tokens: {max_new_tokens} \n max_images: {max_images}"
     )
 
     messages = []
@@ -175,7 +174,7 @@ demo = gr.ChatInterface(
     type="messages",
     chatbot=gr.Chatbot(type="messages", scale=1, allow_tags=["image"]),
     textbox=gr.MultimodalTextbox(
-        file_types=["image", ".mp4"], file_count="multiple", autofocus=True
+        file_types=[".mp4", ".img"], file_count="multiple", autofocus=True
     ),
     multimodal=True,
     additional_inputs=[
