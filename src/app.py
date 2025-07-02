@@ -153,7 +153,7 @@ def run(
     ).to(device=model.device, dtype=torch.bfloat16)
 
     streamer = TextIteratorStreamer(
-        input_processor, timeout=30.0, skip_prompt=True, skip_special_tokens=True
+        input_processor, timeout=60.0, skip_prompt=True, skip_special_tokens=True
     )
     generate_kwargs = dict(
         inputs,
