@@ -1,3 +1,8 @@
-# GSoC GitHub Repositiory
-
-This is a GitHub repository for the 2025 Google Summer of Code project with Google DeepMind.
+title: Gemma Chat Demo
+emoji: 🔥
+colorFrom: yellow
+colorTo: blue
+sdk: gradio
+sdk_version: 5.35.0
+app_file: app.py
+pinned: false
