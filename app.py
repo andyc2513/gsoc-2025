@@ -174,7 +174,7 @@ demo = gr.ChatInterface(
     type="messages",
     chatbot=gr.Chatbot(type="messages", scale=1, allow_tags=["image"]),
     textbox=gr.MultimodalTextbox(
-        file_types=[".mp4", ".jpg", ".png", ".pdf", ".md"], file_count="multiple", autofocus=True
+        file_types=[".mp4", ".jpg", ".png"], file_count="multiple", autofocus=True
     ),
     multimodal=True,
     additional_inputs=[
