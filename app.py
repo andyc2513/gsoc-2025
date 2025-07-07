@@ -108,11 +108,14 @@ def process_history(history: list[dict]) -> list[dict]:
             )
         else:
             content = item["content"]
-            content_buffer.append(
-                {"type": "text", "text": content}
-                if isinstance(content, str)
-                else {"type": "image", "url": content[0]}
-            )
+            if isinstance(content, str):
+                content_buffer.append({"type": "text", "text": content})
+            elif isinstance(content, tuple) and len(content) > 0:
+                file_path = content[0]
+                if file_path.endswith((".mp4", ".mov")):
+                    content_buffer.append({"type": "text", "text": "[Video uploaded previously]"})
+                else:
+                    content_buffer.append({"type": "image", "url": file_path})
 
     if content_buffer:
         messages.append({"role": "user", "content": content_buffer})
