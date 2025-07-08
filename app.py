@@ -130,6 +130,10 @@ def run(
     system_prompt: str,
     max_new_tokens: int,
     max_images: int,
+    temperature: float,
+    top_p: float,
+    top_k: int,
+    repetition_penalty: float,
 ) -> Iterator[str]:
 
     logger.debug(
@@ -162,6 +166,11 @@ def run(
         inputs,
         streamer=streamer,
         max_new_tokens=max_new_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        top_k=top_k,
+        repetition_penalty=repetition_penalty,
+        do_sample=True,
     )
     t = Thread(target=model.generate, kwargs=generate_kwargs)
     t.start()
@@ -186,6 +195,18 @@ demo = gr.ChatInterface(
             label="Max New Tokens", minimum=100, maximum=2000, step=10, value=700
         ),
         gr.Slider(label="Max Images", minimum=1, maximum=4, step=1, value=2),
+        gr.Slider(
+            label="Temperature", minimum=0.1, maximum=2.0, step=0.1, value=0.7
+        ),
+        gr.Slider(
+            label="Top P", minimum=0.1, maximum=1.0, step=0.05, value=0.9
+        ),
+        gr.Slider(
+            label="Top K", minimum=1, maximum=100, step=1, value=50
+        ),
+        gr.Slider(
+            label="Repetition Penalty", minimum=1.0, maximum=2.0, step=0.05, value=1.1
+        )
     ],
     stop_btn=False,
 )
