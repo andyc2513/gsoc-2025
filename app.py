@@ -5,6 +5,8 @@ from transformers import (
     Gemma3ForConditionalGeneration,
     TextIteratorStreamer,
     Gemma3Processor,
+    Gemma3nForConditionalGeneration,
+    Gemma3ForCausalLM
 )
 import spaces
 import tempfile
@@ -20,12 +22,28 @@ dotenv_path = find_dotenv()
 
 load_dotenv(dotenv_path)
 
-model_id = os.getenv("MODEL_ID", "google/gemma-3-4b-it")
+model_27_id = os.getenv("MODEL_27_ID", "google/gemma-3-4b-it")
+model_12_id = os.getenv("MODEL_12_ID", "google/gemma-3-4b-it")
+model_3n_id = os.getenv("MODEL_3N_ID", "google/gemma-3-4b-it")
 
-input_processor = Gemma3Processor.from_pretrained(model_id)
+input_processor = Gemma3Processor.from_pretrained(model_27_id)
 
-model = Gemma3ForConditionalGeneration.from_pretrained(
-    model_id,
+model_27 = Gemma3ForConditionalGeneration.from_pretrained(
+    model_27_id,
+    torch_dtype=torch.bfloat16,
+    device_map="auto",
+    attn_implementation="eager",
+)
+
+model_12 = Gemma3ForCausalLM.from_pretrained(
+    model_12_id,
+    torch_dtype=torch.bfloat16,
+    device_map="auto",
+    attn_implementation="eager",
+)
+
+model_3n = Gemma3nForConditionalGeneration.from_pretrained(
+    model_3n_id,
     torch_dtype=torch.bfloat16,
     device_map="auto",
     attn_implementation="eager",
@@ -157,7 +175,7 @@ def run(
         tokenize=True,
         return_dict=True,
         return_tensors="pt",
-    ).to(device=model.device, dtype=torch.bfloat16)
+    ).to(device=model_27.device, dtype=torch.bfloat16)
 
     streamer = TextIteratorStreamer(
         input_processor, timeout=60.0, skip_prompt=True, skip_special_tokens=True
@@ -172,7 +190,7 @@ def run(
         repetition_penalty=repetition_penalty,
         do_sample=True,
     )
-    t = Thread(target=model.generate, kwargs=generate_kwargs)
+    t = Thread(target=model_27.generate, kwargs=generate_kwargs)
     t.start()
 
     output = ""

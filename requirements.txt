@@ -7,3 +7,4 @@ pytest
 loguru
 python-dotenv
 opencv-python
+timm
