@@ -1,4 +1,5 @@
 import torch
+torch._dynamo.config.disable = True
 from huggingface_hub import login
 from collections.abc import Iterator
 from transformers import (
@@ -6,7 +7,6 @@ from transformers import (
     TextIteratorStreamer,
     Gemma3Processor,
     Gemma3nForConditionalGeneration,
-    Gemma3ForCausalLM
 )
 import spaces
 import tempfile
