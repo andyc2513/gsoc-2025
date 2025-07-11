@@ -23,20 +23,12 @@ dotenv_path = find_dotenv()
 load_dotenv(dotenv_path)
 
 model_27_id = os.getenv("MODEL_27_ID", "google/gemma-3-4b-it")
-model_12_id = os.getenv("MODEL_12_ID", "google/gemma-3-4b-it")
 model_3n_id = os.getenv("MODEL_3N_ID", "google/gemma-3-4b-it")
 
 input_processor = Gemma3Processor.from_pretrained(model_27_id)
 
 model_27 = Gemma3ForConditionalGeneration.from_pretrained(
     model_27_id,
-    torch_dtype=torch.bfloat16,
-    device_map="auto",
-    attn_implementation="eager",
-)
-
-model_12 = Gemma3ForCausalLM.from_pretrained(
-    model_12_id,
     torch_dtype=torch.bfloat16,
     device_map="auto",
     attn_implementation="eager",
