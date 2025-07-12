@@ -22,13 +22,13 @@ dotenv_path = find_dotenv()
 
 load_dotenv(dotenv_path)
 
-model_12_id = os.getenv("MODEL_12_ID", "google/gemma-3-1b-it")
+model_27_id = os.getenv("MODEL_12_ID", "google/gemma-3-1b-it")
 model_3n_id = os.getenv("MODEL_3N_ID", "google/gemma-3-1b-it")
 
-input_processor = Gemma3Processor.from_pretrained(model_12_id)
+input_processor = Gemma3Processor.from_pretrained(model_27_id)
 
-model_12 = Gemma3ForConditionalGeneration.from_pretrained(
-    model_12_id,
+model_27 = Gemma3ForConditionalGeneration.from_pretrained(
+    model_27_id,
     torch_dtype=torch.bfloat16,
     device_map="auto",
     attn_implementation="eager",
@@ -167,7 +167,7 @@ def run(
         tokenize=True,
         return_dict=True,
         return_tensors="pt",
-    ).to(device=model_12.device, dtype=torch.bfloat16)
+    ).to(device=model_27.device, dtype=torch.bfloat16)
 
     streamer = TextIteratorStreamer(
         input_processor, skip_prompt=True, skip_special_tokens=True, timeout=60.0
@@ -182,7 +182,7 @@ def run(
         repetition_penalty=repetition_penalty,
         do_sample=True,
     )
-    t = Thread(target=model_12.generate, kwargs=generate_kwargs)
+    t = Thread(target=model_27.generate, kwargs=generate_kwargs)
     t.start()
 
     output = ""
