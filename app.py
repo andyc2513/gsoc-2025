@@ -22,7 +22,7 @@ dotenv_path = find_dotenv()
 
 load_dotenv(dotenv_path)
 
-model_27_id = os.getenv("MODEL_12_ID", "google/gemma-3-1b-it")
+model_27_id = os.getenv("MODEL_27_ID", "google/gemma-3-1b-it")
 model_3n_id = os.getenv("MODEL_3N_ID", "google/gemma-3-1b-it")
 
 input_processor = Gemma3Processor.from_pretrained(model_27_id)
