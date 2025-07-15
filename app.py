@@ -22,8 +22,8 @@ dotenv_path = find_dotenv()
 
 load_dotenv(dotenv_path)
 
-model_12_id = os.getenv("MODEL_12_ID", "google/gemma-3-1b-it")
-model_3n_id = os.getenv("MODEL_3N_ID", "google/gemma-3-1b-it")
+model_12_id = os.getenv("MODEL_12_ID", "google/gemma-3-12b-it")
+model_3n_id = os.getenv("MODEL_3N_ID", "google/gemma-3n-E4B-it")
 
 input_processor = Gemma3Processor.from_pretrained(model_12_id)
 
@@ -138,6 +138,7 @@ def run(
     message: dict,
     history: list[dict],
     system_prompt: str,
+    model_choice: str,
     max_new_tokens: int,
     max_images: int,
     temperature: float,
@@ -148,8 +149,10 @@ def run(
 
     logger.debug(
         f"\n message: {message} \n history: {history} \n system_prompt: {system_prompt} \n "
-        f"max_new_tokens: {max_new_tokens} \n max_images: {max_images}"
+        f"model_choice: {model_choice} \n max_new_tokens: {max_new_tokens} \n max_images: {max_images}"
     )
+
+    selected_model = model_12 if model_choice == "Gemma 3 12B" else model_3n
 
     messages = []
     if system_prompt:
@@ -167,7 +170,7 @@ def run(
         tokenize=True,
         return_dict=True,
         return_tensors="pt",
-    ).to(device=model_12.device, dtype=torch.bfloat16)
+    ).to(device=selected_model.device, dtype=torch.bfloat16)
 
     streamer = TextIteratorStreamer(
         input_processor, skip_prompt=True, skip_special_tokens=True, timeout=60.0
@@ -182,7 +185,7 @@ def run(
         repetition_penalty=repetition_penalty,
         do_sample=True,
     )
-    t = Thread(target=model_12.generate, kwargs=generate_kwargs)
+    t = Thread(target=selected_model.generate, kwargs=generate_kwargs)
     t.start()
 
     output = ""
@@ -201,6 +204,11 @@ demo = gr.ChatInterface(
     multimodal=True,
     additional_inputs=[
         gr.Textbox(label="System Prompt", value="You are a helpful assistant."),
+        gr.Dropdown(
+            label="Model",
+            choices=["Gemma 3 12B", "Gemma 3n E4B"],
+            value="Gemma 3 12B"
+        ),
         gr.Slider(
             label="Max New Tokens", minimum=100, maximum=2000, step=10, value=700
         ),
