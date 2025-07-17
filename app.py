@@ -24,6 +24,9 @@ load_dotenv(dotenv_path)
 model_12_id = os.getenv("MODEL_12_ID", "google/gemma-3-12b-it")
 model_3n_id = os.getenv("MODEL_3N_ID", "google/gemma-3n-E4B-it")
 
+MAX_VIDEO_SIZE = 100 * 1024 * 1024  # 100 MB
+MAX_IMAGE_SIZE = 10 * 1024 * 1024   # 10 MB
+
 input_processor = Gemma3Processor.from_pretrained(model_12_id)
 
 model_12 = Gemma3ForConditionalGeneration.from_pretrained(
@@ -41,7 +44,26 @@ model_3n = Gemma3nForConditionalGeneration.from_pretrained(
 )
 
 
+def check_file_size(file_path: str) -> bool:
+    if not os.path.exists(file_path):
+        raise ValueError(f"File not found: {file_path}")
+    
+    file_size = os.path.getsize(file_path)
+    
+    if file_path.lower().endswith((".mp4", ".mov")):
+        if file_size > MAX_VIDEO_SIZE:
+            raise ValueError(f"Video file too large: {file_size / (1024*1024):.1f}MB. Maximum allowed: {MAX_VIDEO_SIZE / (1024*1024):.0f}MB")
+    else:
+        if file_size > MAX_IMAGE_SIZE:
+            raise ValueError(f"Image file too large: {file_size / (1024*1024):.1f}MB. Maximum allowed: {MAX_IMAGE_SIZE / (1024*1024):.0f}MB")
+    
+    return True
+
+
 def get_frames(video_path: str, max_images: int) -> list[tuple[Image.Image, float]]:
+    # Check file size before processing
+    check_file_size(video_path)
+    
     frames: list[tuple[Image.Image, float]] = []
     capture = cv2.VideoCapture(video_path)
     if not capture.isOpened():
@@ -91,13 +113,23 @@ def process_user_input(message: dict, max_images: int) -> list[dict]:
     result_content = [{"type": "text", "text": message["text"]}]
 
     for file_path in message["files"]:
+        try:
+            check_file_size(file_path)
+        except ValueError as e:
+            logger.error(f"File size check failed: {e}")
+            result_content.append({"type": "text", "text": f"Error: {str(e)}"})
+            continue
+            
         if file_path.endswith((".mp4", ".mov")):
-            result_content = [*result_content, *process_video(file_path, max_images)]
+            try:
+                result_content = [*result_content, *process_video(file_path, max_images)]
+            except Exception as e:
+                logger.error(f"Video processing failed: {e}")
+                result_content.append({"type": "text", "text": f"Error processing video: {str(e)}"})
         else:
             result_content = [*result_content, {"type": "image", "url": file_path}]
 
     return result_content
-
 
 def process_history(history: list[dict]) -> list[dict]:
     messages = []
