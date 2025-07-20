@@ -16,6 +16,7 @@ from dotenv import load_dotenv, find_dotenv
 import cv2
 from loguru import logger
 from PIL import Image
+import fitz
 
 dotenv_path = find_dotenv()
 
@@ -61,7 +62,6 @@ def check_file_size(file_path: str) -> bool:
 
 
 def get_frames(video_path: str, max_images: int) -> list[tuple[Image.Image, float]]:
-    # Check file size before processing
     check_file_size(video_path)
     
     frames: list[tuple[Image.Image, float]] = []
@@ -106,6 +106,31 @@ def process_video(video_path: str, max_images: int) -> list[dict]:
     return result_content
 
 
+def extract_pdf_text(pdf_path: str) -> str:
+    check_file_size(pdf_path)
+    
+    try:
+        doc = fitz.open(pdf_path)
+        text_content = []
+        
+        for page_num in range(len(doc)):
+            page = doc.load_page(page_num)
+            text = page.get_text()
+            if text.strip():  # Only add non-empty pages
+                text_content.append(f"Page {page_num + 1}:\n{text}")
+        
+        doc.close()
+        
+        if not text_content:
+            return "No text content found in the PDF."
+        
+        return "\n\n".join(text_content)
+    
+    except Exception as e:
+        logger.error(f"Error extracting text from PDF {pdf_path}: {e}")
+        return ValueError(f"Failed to extract text from PDF: {str(e)}")
+
+
 def process_user_input(message: dict, max_images: int) -> list[dict]:
     if not message["files"]:
         return [{"type": "text", "text": message["text"]}]
@@ -126,6 +151,13 @@ def process_user_input(message: dict, max_images: int) -> list[dict]:
             except Exception as e:
                 logger.error(f"Video processing failed: {e}")
                 result_content.append({"type": "text", "text": f"Error processing video: {str(e)}"})
+        elif file_path.lower().endswith(".pdf"):
+            try:
+                pdf_text = extract_pdf_text(file_path)
+                result_content.append({"type": "text", "text": f"PDF Content:\n{pdf_text}"})
+            except Exception as e:
+                logger.error(f"PDF processing failed: {e}")
+                result_content.append({"type": "text", "text": f"Error processing PDF: {str(e)}"})
         else:
             result_content = [*result_content, {"type": "image", "url": file_path}]
 
@@ -230,7 +262,7 @@ demo = gr.ChatInterface(
     type="messages",
     chatbot=gr.Chatbot(type="messages", scale=1, allow_tags=["image"]),
     textbox=gr.MultimodalTextbox(
-        file_types=[".mp4", ".jpg", ".png"], file_count="multiple", autofocus=True
+        file_types=[".mp4", ".jpg", ".png", ".pdf"], file_count="multiple", autofocus=True
     ),
     multimodal=True,
     additional_inputs=[

@@ -8,3 +8,4 @@ loguru
 python-dotenv
 opencv-python
 timm
+pymupdf
