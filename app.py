@@ -187,6 +187,8 @@ def process_history(history: list[dict]) -> list[dict]:
                 file_path = content[0]
                 if file_path.endswith((".mp4", ".mov")):
                     content_buffer.append({"type": "text", "text": "[Video uploaded previously]"})
+                elif file_path.lower().endswith(".pdf"):
+                    content_buffer.append({"type": "text", "text": "[PDF uploaded previously]"})
                 else:
                     content_buffer.append({"type": "image", "url": file_path})
 
