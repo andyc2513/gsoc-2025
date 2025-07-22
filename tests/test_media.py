@@ -5,7 +5,7 @@ from PIL import Image
 from pathlib import Path
 import tempfile
 
-from app import get_frames, process_video, process_user_input, process_history
+from app import get_frames, process_video, process_user_input, process_history, extract_pdf_text
 
 # Get the project root directory
 ROOT_DIR = Path(__file__).parent.parent
@@ -297,3 +297,249 @@ def test_process_history_file_handling():
     finally:
         if os.path.exists(image_path):
             os.unlink(image_path)
+
+
+def test_extract_pdf_text_nonexistent_file():
+    """Test that extract_pdf_text handles non-existent files appropriately."""
+    with pytest.raises(ValueError, match="File not found"):
+        extract_pdf_text("nonexistent_file.pdf")
+
+
+def test_extract_pdf_text_with_mock_pdf():
+    """Test PDF text extraction with a simple PDF file."""
+    import fitz  # PyMuPDF
+    
+    # Create a temporary PDF with some text content
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_pdf:
+        pdf_path = temp_pdf.name
+    
+    try:
+        # Create a simple PDF with text
+        doc = fitz.open()  # Create new PDF
+        page = doc.new_page()
+        
+        # Add some text to the page
+        text_content = "This is a test PDF document.\nIt contains multiple lines of text.\nPage 1 content here."
+        page.insert_text((50, 100), text_content, fontsize=12)
+        
+        # Save the PDF
+        doc.save(pdf_path)
+        doc.close()
+        
+        # Test the extract_pdf_text function
+        result = extract_pdf_text(pdf_path)
+        
+        # Verify the extracted text contains our content
+        assert isinstance(result, str)
+        assert "This is a test PDF document" in result
+        assert "Page 1:" in result  # Should include page number
+        assert "multiple lines of text" in result
+        
+    finally:
+        # Clean up the temporary PDF file
+        if os.path.exists(pdf_path):
+            os.unlink(pdf_path)
+
+
+def test_extract_pdf_text_empty_pdf():
+    """Test PDF text extraction with an empty PDF (no text content)."""
+    import fitz
+    
+    # Create a temporary empty PDF
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_pdf:
+        pdf_path = temp_pdf.name
+    
+    try:
+        # Create an empty PDF
+        doc = fitz.open()  # Create new PDF
+        page = doc.new_page()  # Add empty page
+        doc.save(pdf_path)
+        doc.close()
+        
+        # Test the extract_pdf_text function
+        result = extract_pdf_text(pdf_path)
+        
+        # Should return message about no content
+        assert result == "No text content found in the PDF."
+        
+    finally:
+        # Clean up
+        if os.path.exists(pdf_path):
+            os.unlink(pdf_path)
+
+
+def test_extract_pdf_text_multipage():
+    """Test PDF text extraction with multiple pages."""
+    import fitz
+    
+    # Create a temporary multi-page PDF
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_pdf:
+        pdf_path = temp_pdf.name
+    
+    try:
+        # Create a PDF with multiple pages
+        doc = fitz.open()
+        
+        # Page 1
+        page1 = doc.new_page()
+        page1.insert_text((50, 100), "Content from page one.", fontsize=12)
+        
+        # Page 2
+        page2 = doc.new_page()
+        page2.insert_text((50, 100), "Content from page two.", fontsize=12)
+        
+        # Page 3 (empty)
+        page3 = doc.new_page()
+        
+        # Page 4
+        page4 = doc.new_page()
+        page4.insert_text((50, 100), "Content from page four.", fontsize=12)
+        
+        doc.save(pdf_path)
+        doc.close()
+        
+        # Test the extract_pdf_text function
+        result = extract_pdf_text(pdf_path)
+        
+        # Verify all pages with content are included
+        assert "Page 1:" in result
+        assert "Content from page one" in result
+        assert "Page 2:" in result
+        assert "Content from page two" in result
+        assert "Page 4:" in result
+        assert "Content from page four" in result
+        
+        # Page 3 should be excluded (empty)
+        assert "Page 3:" not in result
+        
+        # Check that pages are separated properly
+        assert "\n\n" in result  # Pages should be separated by double newlines
+        
+    finally:
+        # Clean up
+        if os.path.exists(pdf_path):
+            os.unlink(pdf_path)
+
+
+def test_process_user_input_with_pdf():
+    """Test processing user input with a PDF file."""
+    import fitz
+    
+    # Create a temporary PDF for testing
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_pdf:
+        pdf_path = temp_pdf.name
+    
+    try:
+        # Create a simple PDF
+        doc = fitz.open()
+        page = doc.new_page()
+        page.insert_text((50, 100), "Test PDF content for user input processing.", fontsize=12)
+        doc.save(pdf_path)
+        doc.close()
+        
+        # Test processing user input with PDF
+        message = {
+            "text": "Analyze this PDF",
+            "files": [pdf_path]
+        }
+        
+        result = process_user_input(message, 3)
+        
+        # Should have 2 items (original text + PDF content)
+        assert len(result) == 2
+        
+        # First item should be the message text
+        assert result[0]["type"] == "text"
+        assert result[0]["text"] == "Analyze this PDF"
+        
+        # Second item should be PDF content
+        assert result[1]["type"] == "text"
+        assert "PDF Content:" in result[1]["text"]
+        assert "Test PDF content for user input processing" in result[1]["text"]
+        assert "Page 1:" in result[1]["text"]
+        
+    finally:
+        # Clean up
+        if os.path.exists(pdf_path):
+            os.unlink(pdf_path)
+
+
+def test_process_user_input_pdf_error_handling():
+    """Test that PDF processing errors are handled gracefully."""
+    # Create a file that looks like a PDF but isn't valid
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
+        temp_file.write(b"This is not a valid PDF file content")
+        invalid_pdf_path = temp_file.name
+    
+    try:
+        message = {
+            "text": "Process invalid PDF",
+            "files": [invalid_pdf_path]
+        }
+        
+        result = process_user_input(message, 3)
+        
+        # Should have 2 items (original text + error message)
+        assert len(result) == 2
+        
+        # First item should be the message text
+        assert result[0]["type"] == "text"
+        assert result[0]["text"] == "Process invalid PDF"
+        
+        # Second item should be error message
+        assert result[1]["type"] == "text"
+        assert "Error processing PDF:" in result[1]["text"]
+        
+    finally:
+        # Clean up
+        if os.path.exists(invalid_pdf_path):
+            os.unlink(invalid_pdf_path)
+
+
+def test_process_history_with_pdf():
+    """Test that PDF files in history are handled correctly."""
+    import fitz
+    
+    # Create a temporary PDF for testing
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_pdf:
+        pdf_path = temp_pdf.name
+    
+    try:
+        # Create a simple PDF
+        doc = fitz.open()
+        page = doc.new_page()
+        page.insert_text((50, 100), "Historical PDF content.", fontsize=12)
+        doc.save(pdf_path)
+        doc.close()
+        
+        # Test history with PDF file
+        history = [
+            {"role": "user", "content": (pdf_path,)},
+            {"role": "user", "content": "What does this PDF contain?"},
+            {"role": "assistant", "content": "The PDF contains some text."},
+            {"role": "user", "content": "Thanks!"}
+        ]
+        
+        result = process_history(history)
+        
+        # Should have 3 messages (user turn, assistant turn, final user turn)
+        assert len(result) == 3
+        
+        # First user turn should have PDF placeholder and text
+        assert result[0]["role"] == "user"
+        assert len(result[0]["content"]) == 2
+        assert result[0]["content"][0] == {"type": "text", "text": "[PDF uploaded previously]"}
+        assert result[0]["content"][1] == {"type": "text", "text": "What does this PDF contain?"}
+        
+        # Assistant response
+        assert result[1]["role"] == "assistant"
+        assert result[1]["content"] == [{"type": "text", "text": "The PDF contains some text."}]
+        
+        # Final user message
+        assert result[2]["role"] == "user"
+        assert result[2]["content"] == [{"type": "text", "text": "Thanks!"}]
+        
+    finally:
+        # Clean up
+        if os.path.exists(pdf_path):
+            os.unlink(pdf_path)
