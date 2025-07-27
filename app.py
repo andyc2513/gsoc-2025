@@ -268,7 +268,7 @@ demo = gr.ChatInterface(
     ),
     multimodal=True,
     additional_inputs=[
-        gr.Textbox(label="System Prompt", value="You are a helpful assistant."),
+        gr.Textbox(label="System Prompt", value="You are an advanced multimodal AI assistant capable of analyzing images, videos, and PDF documents. Provide detailed, accurate, and helpful responses based on the content you observe. When analyzing videos, describe what you see frame by frame. For images, provide comprehensive visual analysis. For PDFs, summarize and answer questions about the text content."),
         gr.Dropdown(
             label="Model",
             choices=["Gemma 3 12B", "Gemma 3n E4B"],
