@@ -202,7 +202,8 @@ def process_history(history: list[dict]) -> list[dict]:
 def run(
     message: dict,
     history: list[dict],
-    system_prompt: str,
+    system_prompt_preset: str,
+    custom_system_prompt: str,
     model_choice: str,
     max_new_tokens: int,
     max_images: int,
@@ -212,9 +213,30 @@ def run(
     repetition_penalty: float,
 ) -> Iterator[str]:
 
+    # Define preset system prompts
+    preset_prompts = {
+        "General Assistant": "You are a helpful AI assistant capable of analyzing images, videos, and PDF documents. Provide clear, accurate, and helpful responses to user queries.",
+        
+        "Document Analyzer": "You are a specialized document analysis assistant. Focus on extracting key information, summarizing content, and answering specific questions about uploaded documents. For PDFs, provide structured analysis including main topics, key points, and relevant details. For images containing text, perform OCR-like analysis.",
+        
+        "Visual Content Expert": "You are an expert in visual content analysis. When analyzing images, provide detailed descriptions of visual elements, composition, colors, objects, people, and scenes. For videos, describe the sequence of events, movements, and changes between frames. Identify artistic techniques, styles, and visual storytelling elements.",
+        
+        "Educational Tutor": "You are a patient and encouraging educational tutor. Break down complex concepts into simple, understandable explanations. When analyzing educational materials (images, videos, or documents), focus on learning objectives, key concepts, and provide additional context or examples to enhance understanding.",
+        
+        "Technical Reviewer": "You are a technical expert specializing in analyzing technical documents, diagrams, code screenshots, and instructional videos. Provide detailed technical insights, identify potential issues, suggest improvements, and explain technical concepts with precision and accuracy.",
+        
+        "Creative Storyteller": "You are a creative storyteller who brings visual content to life through engaging narratives. When analyzing images or videos, create compelling stories, describe scenes with rich detail, and help users explore the creative and emotional aspects of visual content.",
+    }
+    
+    # Determine which system prompt to use
+    if system_prompt_preset == "Custom":
+        system_prompt = custom_system_prompt
+    else:
+        system_prompt = preset_prompts.get(system_prompt_preset, custom_system_prompt)
+
     logger.debug(
-        f"\n message: {message} \n history: {history} \n system_prompt: {system_prompt} \n "
-        f"model_choice: {model_choice} \n max_new_tokens: {max_new_tokens} \n max_images: {max_images}"
+        f"\n message: {message} \n history: {history} \n system_prompt_preset: {system_prompt_preset} \n "
+        f"system_prompt: {system_prompt} \n model_choice: {model_choice} \n max_new_tokens: {max_new_tokens} \n max_images: {max_images}"
     )
 
     selected_model = model_12 if model_choice == "Gemma 3 12B" else model_3n
@@ -268,7 +290,26 @@ demo = gr.ChatInterface(
     ),
     multimodal=True,
     additional_inputs=[
-        gr.Textbox(label="System Prompt", value="You are an advanced multimodal AI assistant capable of analyzing images, videos, and PDF documents. Provide detailed, accurate, and helpful responses based on the content you observe. When analyzing videos, describe what you see frame by frame. For images, provide comprehensive visual analysis. For PDFs, summarize and answer questions about the text content."),
+        gr.Dropdown(
+            label="System Prompt Preset",
+            choices=[
+                "General Assistant",
+                "Document Analyzer", 
+                "Visual Content Expert",
+                "Educational Tutor",
+                "Technical Reviewer",
+                "Creative Storyteller",
+                "Custom"
+            ],
+            value="General Assistant",
+            info="Choose a preset or select 'Custom' to write your own"
+        ),
+        gr.Textbox(
+            label="Custom System Prompt", 
+            value="You are a helpful AI assistant capable of analyzing images, videos, and PDF documents. Provide clear, accurate, and helpful responses to user queries.",
+            lines=3,
+            info="Edit this field when 'Custom' is selected above, or modify any preset"
+        ),
         gr.Dropdown(
             label="Model",
             choices=["Gemma 3 12B", "Gemma 3n E4B"],
@@ -293,6 +334,36 @@ demo = gr.ChatInterface(
     ],
     stop_btn=False,
 )
+
+# Add JavaScript to update custom prompt when preset changes
+def update_custom_prompt(preset_choice):
+    preset_prompts = {
+        "General Assistant": "You are a helpful AI assistant capable of analyzing images, videos, and PDF documents. Provide clear, accurate, and helpful responses to user queries.",
+        
+        "Document Analyzer": "You are a specialized document analysis assistant. Focus on extracting key information, summarizing content, and answering specific questions about uploaded documents. For PDFs, provide structured analysis including main topics, key points, and relevant details. For images containing text, perform OCR-like analysis.",
+        
+        "Visual Content Expert": "You are an expert in visual content analysis. When analyzing images, provide detailed descriptions of visual elements, composition, colors, objects, people, and scenes. For videos, describe the sequence of events, movements, and changes between frames. Identify artistic techniques, styles, and visual storytelling elements.",
+        
+        "Educational Tutor": "You are a patient and encouraging educational tutor. Break down complex concepts into simple, understandable explanations. When analyzing educational materials (images, videos, or documents), focus on learning objectives, key concepts, and provide additional context or examples to enhance understanding.",
+        
+        "Technical Reviewer": "You are a technical expert specializing in analyzing technical documents, diagrams, code screenshots, and instructional videos. Provide detailed technical insights, identify potential issues, suggest improvements, and explain technical concepts with precision and accuracy.",
+        
+        "Creative Storyteller": "You are a creative storyteller who brings visual content to life through engaging narratives. When analyzing images or videos, create compelling stories, describe scenes with rich detail, and help users explore the creative and emotional aspects of visual content.",
+        
+        "Custom": ""
+    }
+    
+    return preset_prompts.get(preset_choice, "")
+
+# Connect the dropdown to update the textbox
+with demo:
+    preset_dropdown = demo.additional_inputs[0]
+    custom_textbox = demo.additional_inputs[1]
+    preset_dropdown.change(
+        fn=update_custom_prompt,
+        inputs=[preset_dropdown],
+        outputs=[custom_textbox]
+    )
 
 if __name__ == "__main__":
     demo.launch()
