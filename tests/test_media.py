@@ -5,7 +5,7 @@ from PIL import Image
 from pathlib import Path
 import tempfile
 
-from app import get_frames, process_video, process_user_input, process_history, extract_pdf_text
+from app import get_frames, process_video, process_user_input, process_history, extract_pdf_text, update_custom_prompt
 
 # Get the project root directory
 ROOT_DIR = Path(__file__).parent.parent
@@ -543,3 +543,159 @@ def test_process_history_with_pdf():
         # Clean up
         if os.path.exists(pdf_path):
             os.unlink(pdf_path)
+
+
+def test_update_custom_prompt_general_assistant():
+    """Test that selecting 'General Assistant' returns the correct prompt."""
+    result = update_custom_prompt("General Assistant")
+    expected = "You are a helpful AI assistant capable of analyzing images, videos, and PDF documents. Provide clear, accurate, and helpful responses to user queries."
+    assert result == expected
+
+
+def test_update_custom_prompt_document_analyzer():
+    """Test that selecting 'Document Analyzer' returns the correct prompt."""
+    result = update_custom_prompt("Document Analyzer")
+    expected = "You are a specialized document analysis assistant. Focus on extracting key information, summarizing content, and answering specific questions about uploaded documents. For PDFs, provide structured analysis including main topics, key points, and relevant details. For images containing text, perform OCR-like analysis."
+    assert result == expected
+
+
+def test_update_custom_prompt_visual_content_expert():
+    """Test that selecting 'Visual Content Expert' returns the correct prompt."""
+    result = update_custom_prompt("Visual Content Expert")
+    expected = "You are an expert in visual content analysis. When analyzing images, provide detailed descriptions of visual elements, composition, colors, objects, people, and scenes. For videos, describe the sequence of events, movements, and changes between frames. Identify artistic techniques, styles, and visual storytelling elements."
+    assert result == expected
+
+
+def test_update_custom_prompt_educational_tutor():
+    """Test that selecting 'Educational Tutor' returns the correct prompt."""
+    result = update_custom_prompt("Educational Tutor")
+    expected = "You are a patient and encouraging educational tutor. Break down complex concepts into simple, understandable explanations. When analyzing educational materials (images, videos, or documents), focus on learning objectives, key concepts, and provide additional context or examples to enhance understanding."
+    assert result == expected
+
+
+def test_update_custom_prompt_technical_reviewer():
+    """Test that selecting 'Technical Reviewer' returns the correct prompt."""
+    result = update_custom_prompt("Technical Reviewer")
+    expected = "You are a technical expert specializing in analyzing technical documents, diagrams, code screenshots, and instructional videos. Provide detailed technical insights, identify potential issues, suggest improvements, and explain technical concepts with precision and accuracy."
+    assert result == expected
+
+
+def test_update_custom_prompt_creative_storyteller():
+    """Test that selecting 'Creative Storyteller' returns the correct prompt."""
+    result = update_custom_prompt("Creative Storyteller")
+    expected = "You are a creative storyteller who brings visual content to life through engaging narratives. When analyzing images or videos, create compelling stories, describe scenes with rich detail, and help users explore the creative and emotional aspects of visual content."
+    assert result == expected
+
+
+def test_update_custom_prompt_custom():
+    """Test that selecting 'Custom' returns an empty string."""
+    result = update_custom_prompt("Custom")
+    assert result == ""
+
+
+def test_update_custom_prompt_invalid_choice():
+    """Test that an invalid choice returns an empty string."""
+    result = update_custom_prompt("NonExistentChoice")
+    assert result == ""
+
+
+def test_update_custom_prompt_case_sensitivity():
+    """Test that the function is case-sensitive."""
+    # Should not match lowercase
+    result = update_custom_prompt("general assistant")
+    assert result == ""
+    
+    # Should match exact case
+    result = update_custom_prompt("General Assistant")
+    assert result != ""
+
+
+def test_system_prompt_selection_logic():
+    """Test the system prompt selection logic from the run function."""
+    # Mock the preset prompts dictionary (same as in the run function)
+    preset_prompts = {
+        "General Assistant": "You are a helpful AI assistant capable of analyzing images, videos, and PDF documents. Provide clear, accurate, and helpful responses to user queries.",
+        "Document Analyzer": "You are a specialized document analysis assistant. Focus on extracting key information, summarizing content, and answering specific questions about uploaded documents. For PDFs, provide structured analysis including main topics, key points, and relevant details. For images containing text, perform OCR-like analysis.",
+        "Visual Content Expert": "You are an expert in visual content analysis. When analyzing images, provide detailed descriptions of visual elements, composition, colors, objects, people, and scenes. For videos, describe the sequence of events, movements, and changes between frames. Identify artistic techniques, styles, and visual storytelling elements.",
+        "Educational Tutor": "You are a patient and encouraging educational tutor. Break down complex concepts into simple, understandable explanations. When analyzing educational materials (images, videos, or documents), focus on learning objectives, key concepts, and provide additional context or examples to enhance understanding.",
+        "Technical Reviewer": "You are a technical expert specializing in analyzing technical documents, diagrams, code screenshots, and instructional videos. Provide detailed technical insights, identify potential issues, suggest improvements, and explain technical concepts with precision and accuracy.",
+        "Creative Storyteller": "You are a creative storyteller who brings visual content to life through engaging narratives. When analyzing images or videos, create compelling stories, describe scenes with rich detail, and help users explore the creative and emotional aspects of visual content.",
+    }
+    
+    # Test preset selection
+    for preset_name, expected_prompt in preset_prompts.items():
+        custom_prompt = "This is a custom prompt"
+        
+        # When preset is selected (not "Custom"), should use preset
+        if preset_name != "Custom":
+            selected_prompt = preset_prompts.get(preset_name, custom_prompt)
+            assert selected_prompt == expected_prompt
+            assert selected_prompt != custom_prompt
+    
+    # Test custom selection
+    custom_prompt = "This is my custom system prompt"
+    system_prompt_preset = "Custom"
+    
+    if system_prompt_preset == "Custom":
+        selected_prompt = custom_prompt
+    else:
+        selected_prompt = preset_prompts.get(system_prompt_preset, custom_prompt)
+    
+    assert selected_prompt == custom_prompt
+
+
+def test_system_prompt_preset_choices():
+    """Test that all expected preset choices are available."""
+    expected_choices = [
+        "General Assistant",
+        "Document Analyzer", 
+        "Visual Content Expert",
+        "Educational Tutor",
+        "Technical Reviewer",
+        "Creative Storyteller",
+        "Custom"
+    ]
+    
+    # Verify all choices exist in update_custom_prompt function
+    for choice in expected_choices[:-1]:  # Exclude "Custom" as it returns empty string
+        result = update_custom_prompt(choice)
+        assert isinstance(result, str)
+        assert len(result) > 0  # Should return a non-empty prompt
+    
+    # Test Custom specifically
+    custom_result = update_custom_prompt("Custom")
+    assert custom_result == ""
+
+
+def test_system_prompt_content_quality():
+    """Test that system prompts contain expected keywords for their specialization."""
+    
+    # General Assistant should mention general capabilities
+    general = update_custom_prompt("General Assistant")
+    assert "images" in general.lower()
+    assert "videos" in general.lower()
+    assert "pdf" in general.lower()
+    
+    # Document Analyzer should focus on document analysis
+    document = update_custom_prompt("Document Analyzer")
+    assert "document" in document.lower()
+    assert "analysis" in document.lower()
+    assert "pdf" in document.lower()
+    
+    # Visual Content Expert should focus on visual analysis
+    visual = update_custom_prompt("Visual Content Expert")
+    assert "visual" in visual.lower()
+    assert "images" in visual.lower()
+    assert "videos" in visual.lower()
+    
+    # Educational Tutor should mention teaching/learning
+    educational = update_custom_prompt("Educational Tutor")
+    assert any(word in educational.lower() for word in ["educational", "tutor", "learning", "teaching", "concepts"])
+    
+    # Technical Reviewer should mention technical aspects
+    technical = update_custom_prompt("Technical Reviewer")
+    assert "technical" in technical.lower()
+    
+    # Creative Storyteller should mention creativity/stories
+    creative = update_custom_prompt("Creative Storyteller")
+    assert any(word in creative.lower() for word in ["creative", "story", "narrative", "storyteller"])
