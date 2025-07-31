@@ -5,7 +5,7 @@ from PIL import Image
 from pathlib import Path
 import tempfile
 
-from app import get_frames, process_video, process_user_input, process_history, extract_pdf_text, update_custom_prompt
+from app import get_frames, process_video, process_user_input, process_history, extract_pdf_text, update_custom_prompt, check_file_size, MAX_VIDEO_SIZE, MAX_IMAGE_SIZE
 
 # Get the project root directory
 ROOT_DIR = Path(__file__).parent.parent
@@ -699,3 +699,217 @@ def test_system_prompt_content_quality():
     # Creative Storyteller should mention creativity/stories
     creative = update_custom_prompt("Creative Storyteller")
     assert any(word in creative.lower() for word in ["creative", "story", "narrative", "storyteller"])
+
+
+def test_check_file_size_nonexistent_file():
+    """Test that check_file_size raises ValueError for non-existent files."""
+    with pytest.raises(ValueError, match="File not found"):
+        check_file_size("nonexistent_file.txt")
+
+
+def test_check_file_size_valid_image():
+    """Test that check_file_size returns True for valid image files."""
+    # Create a small temporary image file
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
+        # Write minimal JPEG header to make it a valid file
+        temp_file.write(b"small image content")
+        temp_path = temp_file.name
+    
+    try:
+        # File should be well under the image size limit
+        result = check_file_size(temp_path)
+        assert result is True
+        
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def test_check_file_size_valid_video():
+    """Test that check_file_size returns True for valid video files."""
+    # Create a small temporary video file
+    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_file:
+        # Write some minimal content
+        temp_file.write(b"small video content")
+        temp_path = temp_file.name
+    
+    try:
+        # File should be well under the video size limit
+        result = check_file_size(temp_path)
+        assert result is True
+        
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def test_check_file_size_large_image():
+    """Test that check_file_size raises ValueError for oversized image files."""
+    # Create a temporary file that exceeds the image size limit
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
+        # Write content larger than MAX_IMAGE_SIZE (10MB)
+        large_content = b"x" * (MAX_IMAGE_SIZE + 1024)  # 10MB + 1KB
+        temp_file.write(large_content)
+        temp_path = temp_file.name
+    
+    try:
+        with pytest.raises(ValueError, match="Image file too large"):
+            check_file_size(temp_path)
+            
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def test_check_file_size_large_video():
+    """Test that check_file_size raises ValueError for oversized video files."""
+    # Create a temporary file that exceeds the video size limit
+    with tempfile.NamedTemporaryFile(suffix=".mov", delete=False) as temp_file:
+        # Write content larger than MAX_VIDEO_SIZE (100MB)
+        # Write in chunks to avoid memory issues
+        chunk_size = 1024 * 1024  # 1MB chunks
+        chunks_needed = (MAX_VIDEO_SIZE // chunk_size) + 2  # Exceed limit by 2MB
+        
+        for _ in range(chunks_needed):
+            temp_file.write(b"x" * chunk_size)
+        temp_path = temp_file.name
+    
+    try:
+        with pytest.raises(ValueError, match="Video file too large"):
+            check_file_size(temp_path)
+            
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def test_check_file_size_edge_cases():
+    """Test check_file_size with files at the exact size limits."""
+    # Test image file at exact limit
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
+        # Write exactly MAX_IMAGE_SIZE bytes
+        temp_file.write(b"x" * MAX_IMAGE_SIZE)
+        image_path = temp_file.name
+    
+    try:
+        # Should pass at exact limit
+        result = check_file_size(image_path)
+        assert result is True
+        
+    finally:
+        if os.path.exists(image_path):
+            os.unlink(image_path)
+    
+    # Test video file at exact limit
+    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_file:
+        # Write exactly MAX_VIDEO_SIZE bytes in chunks to avoid memory issues
+        chunk_size = 1024 * 1024  # 1MB chunks
+        chunks_needed = MAX_VIDEO_SIZE // chunk_size
+        
+        for _ in range(chunks_needed):
+            temp_file.write(b"x" * chunk_size)
+        video_path = temp_file.name
+    
+    try:
+        # Should pass at exact limit
+        result = check_file_size(video_path)
+        assert result is True
+        
+    finally:
+        if os.path.exists(video_path):
+            os.unlink(video_path)
+
+
+def test_check_file_size_different_extensions():
+    """Test that check_file_size correctly categorizes different file extensions."""
+    # Test various video extensions
+    video_extensions = [".mp4", ".mov", ".MP4", ".MOV"]  # Test case sensitivity
+    for ext in video_extensions:
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as temp_file:
+            temp_file.write(b"small content")
+            temp_path = temp_file.name
+        
+        try:
+            # Should be treated as video file (checked against video limit)
+            result = check_file_size(temp_path)
+            assert result is True
+            
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+    
+    # Test various image extensions
+    image_extensions = [".jpg", ".png", ".jpeg", ".gif", ".bmp", ".JPG", ".PNG"]
+    for ext in image_extensions:
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as temp_file:
+            temp_file.write(b"small content")
+            temp_path = temp_file.name
+        
+        try:
+            # Should be treated as image file (checked against image limit)
+            result = check_file_size(temp_path)
+            assert result is True
+            
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+
+def test_check_file_size_empty_file():
+    """Test that check_file_size handles empty files correctly."""
+    # Create empty image file
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
+        temp_path = temp_file.name  # File is created but empty
+    
+    try:
+        # Empty file should pass size check
+        result = check_file_size(temp_path)
+        assert result is True
+        
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def test_check_file_size_error_messages():
+    """Test that check_file_size provides informative error messages."""
+    # Test oversized image error message
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
+        oversized_content = b"x" * (MAX_IMAGE_SIZE + 1024)
+        temp_file.write(oversized_content)
+        temp_path = temp_file.name
+    
+    try:
+        with pytest.raises(ValueError) as exc_info:
+            check_file_size(temp_path)
+        
+        error_message = str(exc_info.value)
+        assert "Image file too large" in error_message
+        assert "Maximum allowed:" in error_message
+        assert "10MB" in error_message  # Should show the limit
+        
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def test_check_file_size_with_actual_test_video():
+    """Test check_file_size with the actual test video file."""
+    video_path = os.path.join(ROOT_DIR, "assets", "test_video.mp4")
+    
+    if os.path.exists(video_path):
+        # Should pass since test video should be under the limit
+        result = check_file_size(video_path)
+        assert result is True
+    else:
+        pytest.skip("Test video file not found")
+
+
+def test_check_file_size_constants():
+    """Test that the size constants are set to expected values."""
+    # Verify the constants are set correctly
+    assert MAX_VIDEO_SIZE == 100 * 1024 * 1024  # 100 MB
+    assert MAX_IMAGE_SIZE == 10 * 1024 * 1024   # 10 MB
+    
+    # Ensure video limit is larger than image limit
+    assert MAX_VIDEO_SIZE > MAX_IMAGE_SIZE
