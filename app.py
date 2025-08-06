@@ -229,7 +229,7 @@ def run(
     }
     
     # Determine which system prompt to use
-    if system_prompt_preset == "Custom":
+    if system_prompt_preset == "Custom Prompt":
         system_prompt = custom_system_prompt
     else:
         system_prompt = preset_prompts.get(system_prompt_preset, custom_system_prompt)
@@ -299,16 +299,16 @@ demo = gr.ChatInterface(
                 "Educational Tutor",
                 "Technical Reviewer",
                 "Creative Storyteller",
-                "Custom"
+                "Custom Prompt"
             ],
             value="General Assistant",
-            info="Choose a preset or select 'Custom' to write your own"
+            info="System prompts define the AI's role and behavior. Choose a preset that matches your task, or select 'Custom Prompt' to write your own specialized instructions."
         ),
         gr.Textbox(
             label="Custom System Prompt", 
             value="You are a helpful AI assistant capable of analyzing images, videos, and PDF documents. Provide clear, accurate, and helpful responses to user queries.",
             lines=3,
-            info="Edit this field when 'Custom' is selected above, or modify any preset"
+            info="Edit this field when 'Custom Prompt' is selected above, or modify any preset"
         ),
         gr.Dropdown(
             label="Model",
@@ -350,7 +350,7 @@ def update_custom_prompt(preset_choice):
         
         "Creative Storyteller": "You are a creative storyteller who brings visual content to life through engaging narratives. When analyzing images or videos, create compelling stories, describe scenes with rich detail, and help users explore the creative and emotional aspects of visual content.",
         
-        "Custom": ""
+        "Custom Prompt": ""
     }
     
     return preset_prompts.get(preset_choice, "")
