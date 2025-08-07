@@ -313,7 +313,8 @@ demo = gr.ChatInterface(
         gr.Dropdown(
             label="Model",
             choices=["Gemma 3 12B", "Gemma 3n E4B"],
-            value="Gemma 3 12B"
+            value="Gemma 3 12B",
+            info="Gemma 3 12B: More powerful and detailed responses, but slower processing. Gemma 3n E4B: Faster processing with efficient performance for most tasks."
         ),
         gr.Slider(
             label="Max New Tokens", minimum=100, maximum=2000, step=10, value=700
