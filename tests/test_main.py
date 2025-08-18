@@ -488,7 +488,7 @@ def test_process_user_input_pdf_error_handling():
         
         # Second item should be error message
         assert result[1]["type"] == "text"
-        assert "Error processing PDF:" in result[1]["text"]
+        assert "Failed to extract text from PDF:" in result[1]["text"]
         
     finally:
         # Clean up
