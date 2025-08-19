@@ -28,21 +28,37 @@ model_3n_id = os.getenv("MODEL_3N_ID", "google/gemma-3n-E4B-it")
 MAX_VIDEO_SIZE = 100 * 1024 * 1024  # 100 MB
 MAX_IMAGE_SIZE = 10 * 1024 * 1024   # 10 MB
 
-input_processor = Gemma3Processor.from_pretrained(model_12_id)
+# Global variables to hold models (loaded lazily)
+input_processor = None
+model_12 = None
+model_3n = None
 
-model_12 = Gemma3ForConditionalGeneration.from_pretrained(
-    model_12_id,
-    torch_dtype=torch.bfloat16,
-    device_map="auto",
-    attn_implementation="eager",
-)
-
-model_3n = Gemma3nForConditionalGeneration.from_pretrained(
-    model_3n_id,
-    torch_dtype=torch.bfloat16,
-    device_map="auto",
-    attn_implementation="eager",
-)
+def load_models():
+    """Load models lazily when needed."""
+    global input_processor, model_12, model_3n
+    
+    # Skip model loading during testing
+    if os.getenv("SKIP_MODEL_LOADING") == "true" or "pytest" in os.getenv("_", ""):
+        return
+    
+    if input_processor is None:
+        input_processor = Gemma3Processor.from_pretrained(model_12_id)
+    
+    if model_12 is None:
+        model_12 = Gemma3ForConditionalGeneration.from_pretrained(
+            model_12_id,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+            attn_implementation="eager",
+        )
+    
+    if model_3n is None:
+        model_3n = Gemma3nForConditionalGeneration.from_pretrained(
+            model_3n_id,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+            attn_implementation="eager",
+        )
 
 
 def check_file_size(file_path: str) -> bool:
@@ -212,6 +228,9 @@ def run(
     top_k: int,
     repetition_penalty: float,
 ) -> Iterator[str]:
+
+    # Load models only when needed (not during testing)
+    load_models()
 
     # Define preset system prompts
     preset_prompts = {

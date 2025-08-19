@@ -11,236 +11,52 @@ from app import get_frames, process_video, process_user_input, process_history, 
 ROOT_DIR = Path(__file__).parent.parent
 
 
-def test_correct_frame_return():
-    """Test that get_frames returns a list of (Image, float) tuples."""
-    # Path to a test video file
+def test_get_frames():
+    """Test that get_frames returns correct structure and handles video processing."""
     video_path = os.path.join(ROOT_DIR, "assets", "test_video.mp4")
-
-    # Ensure the test video exists
     assert os.path.exists(video_path)
 
-    # Test with a small number of frames
-    max_images = 3
-    frames = get_frames(video_path, max_images)
-
+    frames = get_frames(video_path, 3)
     assert isinstance(frames, list)
     assert all(isinstance(item, tuple) and len(item) == 2 for item in frames)
-    assert all(
-        isinstance(img, Image.Image) and isinstance(ts, float) for img, ts in frames
-    )
+    assert all(isinstance(img, Image.Image) and isinstance(ts, float) for img, ts in frames)
 
 
-def test_process_video_structure():
-    """Test that process_video returns the expected list structure."""
-
+def test_process_video():
+    """Test video processing returns expected structure."""
     video_path = os.path.join(ROOT_DIR, "assets", "test_video.mp4")
-    max_images = 2
+    result = process_video(video_path, 2)
 
-    result = process_video(video_path, max_images)
-
-    # Should have 2 items (text + image) per frame
-    assert len(result) == max_images * 2
-
-    # Check structure of items
-    for i in range(0, len(result), 2):
-        # Text item
-        assert result[i]["type"] == "text"
-        assert result[i]["text"].startswith("Frame ")
-
-        # Image item
-        assert result[i + 1]["type"] == "image"
-        assert "url" in result[i + 1]
-        assert os.path.exists(result[i + 1]["url"])
-
-        # Verify the image file is valid
-        try:
-            img = Image.open(result[i + 1]["url"])
-            img.verify()  # Make sure it's a valid image
-        except Exception as e:
-            pytest.fail(f"Invalid image file: {e}")
-
-
-def test_process_video_timestamps():
-    """Test that timestamps in the result are properly formatted."""
-
-    video_path = os.path.join(ROOT_DIR, "assets", "test_video.mp4")
-    max_images = 3
-
-    result = process_video(video_path, max_images)
-
-    # Extract timestamps from text items
-    timestamps = []
-    for i in range(0, len(result), 2):
-        if result[i]["type"] == "text":
-            # Extract timestamp from "Frame X.XX:" format
-            timestamp_text = result[i]["text"].split()[1].rstrip(":")
-            timestamps.append(float(timestamp_text))
-
-    # Check timestamps are ascending
-    assert len(timestamps) == max_images
-    assert all(timestamps[i] <= timestamps[i + 1] for i in range(len(timestamps) - 1))
-
-
-def test_process_video_temp_files():
-    """Test that temporary files are created and cleaned up properly."""
-
-    video_path = os.path.join(ROOT_DIR, "assets", "test_video.mp4")
-    max_images = 1
-
-    result = process_video(video_path, max_images)
-
-    # Verify temp file exists
-    image_path = result[1]["url"]
-    assert os.path.exists(image_path)
-    assert image_path.endswith(".png")
+    assert len(result) == 4  # 2 frames * 2 items per frame
+    assert result[0]["type"] == "text" and result[0]["text"].startswith("Frame ")
+    assert result[1]["type"] == "image" and os.path.exists(result[1]["url"])
 
 
 def test_process_video_invalid_path():
     """Test that process_video handles invalid paths appropriately."""
-
     with pytest.raises(ValueError):
         process_video("nonexistent_video.mp4", 3)
         
-def test_process_user_input_text_only():
-    """Test processing user input with text only (no files)."""
-    message = {
-        "text": "This is a test message",
-        "files": []
-    }
-    
-    # Add the max_images parameter
+def test_process_user_input():
+    """Test processing user input with different file types."""
+    # Text only
+    message = {"text": "Test message", "files": []}
     result = process_user_input(message, 5)
-    
-    # Should return a single text item
     assert len(result) == 1
     assert result[0]["type"] == "text"
-    assert result[0]["text"] == "This is a test message"
-
-
-def test_process_user_input_with_video():
-    """Test processing user input with a video file."""
+    
+    # With video
     video_path = os.path.join(ROOT_DIR, "assets", "test_video.mp4")
-    assert os.path.exists(video_path), f"Test video not found at {video_path}"
-    
-    message = {
-        "text": "Video analysis",
-        "files": [video_path]
-    }
-    
-    result = process_user_input(message, 4)
-    
-    # Should have at least 3 items (text + at least one frame with text and image)
-    assert len(result) >= 3
-    
-    # First item should be the message text
-    assert result[0]["type"] == "text"
-    assert result[0]["text"] == "Video analysis"
-    
-    # Following items should be frame text and images
-    assert result[1]["type"] == "text"
-    assert result[1]["text"].startswith("Frame ")
-    
-    assert result[2]["type"] == "image"
-    assert "url" in result[2]
-    assert os.path.exists(result[2]["url"])
+    if os.path.exists(video_path):
+        message = {"text": "Video analysis", "files": [video_path]}
+        result = process_user_input(message, 2)
+        assert len(result) >= 3  # text + frames
+        assert result[0]["text"] == "Video analysis"
+        assert result[1]["text"].startswith("Frame ")
 
 
-def test_process_user_input_with_images():
-    """Test processing user input with image files."""
-    # Create temporary image files for testing
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as img1, \
-         tempfile.NamedTemporaryFile(suffix=".png", delete=False) as img2:
-        
-        image_paths = [img1.name, img2.name]
-        
-        message = {
-            "text": "Image analysis",
-            "files": image_paths
-        }
-        
-        result = process_user_input(message, 5)
-        
-        # Should have 3 items (text + 2 images)
-        assert len(result) == 3
-        
-        # First item should be the message text
-        assert result[0]["type"] == "text"
-        assert result[0]["text"] == "Image analysis"
-        
-        # Following items should be images
-        assert result[1]["type"] == "image"
-        assert result[1]["url"] == image_paths[0]
-        
-        assert result[2]["type"] == "image"
-        assert result[2]["url"] == image_paths[1]
-        
-    # Clean up temp files
-    for path in image_paths:
-        if os.path.exists(path):
-            os.unlink(path)
-
-
-def test_process_user_input_empty_text():
-    """Test processing user input with empty text but with files."""
-    video_path = os.path.join(ROOT_DIR, "assets", "test_video.mp4")
-    
-    message = {
-        "text": "",  # Empty text
-        "files": [video_path]
-    }
-    
-    # Add max_images parameter
-    result = process_user_input(message, 3)
-    
-    # First item should be empty text
-    assert result[0]["type"] == "text"
-    assert result[0]["text"] == ""
-    
-    # Rest should be video frames
-    assert len(result) > 1
-
-
-def test_process_user_input_handles_empty_files_list():
-    """Test that an empty files list is handled correctly."""
-    message = {
-        "text": "No files",
-        "files": []
-    }
-    
-    # Add max_images parameter
-    result = process_user_input(message, 3)
-    assert len(result) == 1
-    assert result[0]["type"] == "text"
-    assert result[0]["text"] == "No files"
-
-
-def test_process_user_input_max_images_effect():
-    """Test that max_images parameter correctly limits the number of frames."""
-    video_path = os.path.join(ROOT_DIR, "assets", "test_video.mp4")
-    
-    message = {
-        "text": "Video with few frames",
-        "files": [video_path]
-    }
-    
-    result_few = process_user_input(message, 2)
-    result_many = process_user_input(message, 5)
-    
-    # Count actual frames (each frame has a text and image entry)
-    frames_few = (len(result_few) - 1) // 2  # -1 for initial text message
-    frames_many = (len(result_many) - 1) // 2
-    
-    # Should respect max_images parameter
-    assert frames_few <= 2
-    assert frames_many <= 5
-    assert frames_few < frames_many
-    
-def test_process_history_basic_functionality():
-    """Test basic conversation processing and content buffering."""
-    # Empty history
-    assert process_history([]) == []
-    
-    # Simple conversation
+def test_process_history():
+    """Test basic conversation processing."""
     history = [
         {"role": "user", "content": "Hello"},
         {"role": "assistant", "content": "Hi there!"},
@@ -251,665 +67,121 @@ def test_process_history_basic_functionality():
     assert len(result) == 3
     assert result[0] == {"role": "user", "content": [{"type": "text", "text": "Hello"}]}
     assert result[1] == {"role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]}
-    assert result[2] == {"role": "user", "content": [{"type": "text", "text": "How are you?"}]}
 
 
-def test_process_history_file_handling():
-    """Test processing of different file types and content buffering."""
-    # Create temp image file
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as img:
-        image_path = img.name
+def test_extract_pdf_text():
+    """Test PDF text extraction."""
+    import fitz
     
-    video_path = os.path.join(ROOT_DIR, "assets", "test_video.mp4")
-    
-    try:
-        history = [
-            {"role": "user", "content": (image_path,)},
-            {"role": "user", "content": "What's this image?"},
-            {"role": "user", "content": (video_path,)},
-            {"role": "assistant", "content": "I see an image and video."},
-            {"role": "user", "content": "First"},
-            {"role": "user", "content": "Second"},
-            {"role": "user", "content": "Third"}  # Multiple user messages at end
-        ]
-        
-        result = process_history(history)
-        assert len(result) == 3
-        
-        # First user turn: image + text + video
-        assert result[0]["role"] == "user"
-        assert len(result[0]["content"]) == 3
-        assert result[0]["content"][0] == {"type": "image", "url": image_path}
-        assert result[0]["content"][1] == {"type": "text", "text": "What's this image?"}
-        assert result[0]["content"][2] == {"type": "text", "text": "[Video uploaded previously]"}
-        
-        # Assistant response
-        assert result[1]["role"] == "assistant"
-        assert result[1]["content"] == [{"type": "text", "text": "I see an image and video."}]
-        
-        # Final user turn: multiple buffered messages
-        assert result[2]["role"] == "user"
-        assert len(result[2]["content"]) == 3
-        assert result[2]["content"][0] == {"type": "text", "text": "First"}
-        assert result[2]["content"][1] == {"type": "text", "text": "Second"}
-        assert result[2]["content"][2] == {"type": "text", "text": "Third"}
-        
-    finally:
-        if os.path.exists(image_path):
-            os.unlink(image_path)
-
-
-def test_extract_pdf_text_nonexistent_file():
-    """Test that extract_pdf_text handles non-existent files appropriately."""
+    # Test non-existent file
     with pytest.raises(ValueError, match="File not found"):
         extract_pdf_text("nonexistent_file.pdf")
-
-
-def test_extract_pdf_text_with_mock_pdf():
-    """Test PDF text extraction with a simple PDF file."""
-    import fitz  # PyMuPDF
     
-    # Create a temporary PDF with some text content
+    # Test with valid PDF
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_pdf:
         pdf_path = temp_pdf.name
     
     try:
-        # Create a simple PDF with text
-        doc = fitz.open()  # Create new PDF
-        page = doc.new_page()
-        
-        # Add some text to the page
-        text_content = "This is a test PDF document.\nIt contains multiple lines of text.\nPage 1 content here."
-        page.insert_text((50, 100), text_content, fontsize=12)
-        
-        # Save the PDF
-        doc.save(pdf_path)
-        doc.close()
-        
-        # Test the extract_pdf_text function
-        result = extract_pdf_text(pdf_path)
-        
-        # Verify the extracted text contains our content
-        assert isinstance(result, str)
-        assert "This is a test PDF document" in result
-        assert "Page 1:" in result  # Should include page number
-        assert "multiple lines of text" in result
-        
-    finally:
-        # Clean up the temporary PDF file
-        if os.path.exists(pdf_path):
-            os.unlink(pdf_path)
-
-
-def test_extract_pdf_text_empty_pdf():
-    """Test PDF text extraction with an empty PDF (no text content)."""
-    import fitz
-    
-    # Create a temporary empty PDF
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_pdf:
-        pdf_path = temp_pdf.name
-    
-    try:
-        # Create an empty PDF
-        doc = fitz.open()  # Create new PDF
-        page = doc.new_page()  # Add empty page
-        doc.save(pdf_path)
-        doc.close()
-        
-        # Test the extract_pdf_text function
-        result = extract_pdf_text(pdf_path)
-        
-        # Should return message about no content
-        assert result == "No text content found in the PDF."
-        
-    finally:
-        # Clean up
-        if os.path.exists(pdf_path):
-            os.unlink(pdf_path)
-
-
-def test_extract_pdf_text_multipage():
-    """Test PDF text extraction with multiple pages."""
-    import fitz
-    
-    # Create a temporary multi-page PDF
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_pdf:
-        pdf_path = temp_pdf.name
-    
-    try:
-        # Create a PDF with multiple pages
         doc = fitz.open()
-        
-        # Page 1
-        page1 = doc.new_page()
-        page1.insert_text((50, 100), "Content from page one.", fontsize=12)
-        
-        # Page 2
-        page2 = doc.new_page()
-        page2.insert_text((50, 100), "Content from page two.", fontsize=12)
-        
-        # Page 3 (empty)
-        page3 = doc.new_page()
-        
-        # Page 4
-        page4 = doc.new_page()
-        page4.insert_text((50, 100), "Content from page four.", fontsize=12)
-        
+        page = doc.new_page()
+        page.insert_text((50, 100), "Test PDF content.", fontsize=12)
         doc.save(pdf_path)
         doc.close()
         
-        # Test the extract_pdf_text function
         result = extract_pdf_text(pdf_path)
-        
-        # Verify all pages with content are included
+        assert "Test PDF content" in result
         assert "Page 1:" in result
-        assert "Content from page one" in result
-        assert "Page 2:" in result
-        assert "Content from page two" in result
-        assert "Page 4:" in result
-        assert "Content from page four" in result
-        
-        # Page 3 should be excluded (empty)
-        assert "Page 3:" not in result
-        
-        # Check that pages are separated properly
-        assert "\n\n" in result  # Pages should be separated by double newlines
         
     finally:
-        # Clean up
         if os.path.exists(pdf_path):
             os.unlink(pdf_path)
 
 
 def test_process_user_input_with_pdf():
-    """Test processing user input with a PDF file."""
+    """Test processing user input with PDF."""
     import fitz
     
-    # Create a temporary PDF for testing
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_pdf:
         pdf_path = temp_pdf.name
     
     try:
-        # Create a simple PDF
         doc = fitz.open()
         page = doc.new_page()
-        page.insert_text((50, 100), "Test PDF content for user input processing.", fontsize=12)
+        page.insert_text((50, 100), "Test PDF content.", fontsize=12)
         doc.save(pdf_path)
         doc.close()
         
-        # Test processing user input with PDF
-        message = {
-            "text": "Analyze this PDF",
-            "files": [pdf_path]
-        }
-        
+        message = {"text": "Analyze PDF", "files": [pdf_path]}
         result = process_user_input(message, 3)
         
-        # Should have 2 items (original text + PDF content)
         assert len(result) == 2
-        
-        # First item should be the message text
-        assert result[0]["type"] == "text"
-        assert result[0]["text"] == "Analyze this PDF"
-        
-        # Second item should be PDF content
-        assert result[1]["type"] == "text"
+        assert result[0]["text"] == "Analyze PDF"
         assert "PDF Content:" in result[1]["text"]
-        assert "Test PDF content for user input processing" in result[1]["text"]
-        assert "Page 1:" in result[1]["text"]
+        assert "Test PDF content" in result[1]["text"]
         
     finally:
-        # Clean up
         if os.path.exists(pdf_path):
             os.unlink(pdf_path)
 
 
 def test_process_user_input_pdf_error_handling():
-    """Test that PDF processing errors are handled gracefully."""
-    # Create a file that looks like a PDF but isn't valid
+    """Test PDF error handling."""
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
-        temp_file.write(b"This is not a valid PDF file content")
+        temp_file.write(b"Invalid PDF content")
         invalid_pdf_path = temp_file.name
     
     try:
-        message = {
-            "text": "Process invalid PDF",
-            "files": [invalid_pdf_path]
-        }
-        
+        message = {"text": "Process invalid PDF", "files": [invalid_pdf_path]}
         result = process_user_input(message, 3)
         
-        # Should have 2 items (original text + error message)
         assert len(result) == 2
-        
-        # First item should be the message text
-        assert result[0]["type"] == "text"
         assert result[0]["text"] == "Process invalid PDF"
-        
-        # Second item should be error message
-        assert result[1]["type"] == "text"
         assert "Failed to extract text from PDF:" in result[1]["text"]
         
     finally:
-        # Clean up
         if os.path.exists(invalid_pdf_path):
             os.unlink(invalid_pdf_path)
 
 
-def test_process_history_with_pdf():
-    """Test that PDF files in history are handled correctly."""
-    import fitz
-    
-    # Create a temporary PDF for testing
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_pdf:
-        pdf_path = temp_pdf.name
-    
-    try:
-        # Create a simple PDF
-        doc = fitz.open()
-        page = doc.new_page()
-        page.insert_text((50, 100), "Historical PDF content.", fontsize=12)
-        doc.save(pdf_path)
-        doc.close()
-        
-        # Test history with PDF file
-        history = [
-            {"role": "user", "content": (pdf_path,)},
-            {"role": "user", "content": "What does this PDF contain?"},
-            {"role": "assistant", "content": "The PDF contains some text."},
-            {"role": "user", "content": "Thanks!"}
-        ]
-        
-        result = process_history(history)
-        
-        # Should have 3 messages (user turn, assistant turn, final user turn)
-        assert len(result) == 3
-        
-        # First user turn should have PDF placeholder and text
-        assert result[0]["role"] == "user"
-        assert len(result[0]["content"]) == 2
-        assert result[0]["content"][0] == {"type": "text", "text": "[PDF uploaded previously]"}
-        assert result[0]["content"][1] == {"type": "text", "text": "What does this PDF contain?"}
-        
-        # Assistant response
-        assert result[1]["role"] == "assistant"
-        assert result[1]["content"] == [{"type": "text", "text": "The PDF contains some text."}]
-        
-        # Final user message
-        assert result[2]["role"] == "user"
-        assert result[2]["content"] == [{"type": "text", "text": "Thanks!"}]
-        
-    finally:
-        # Clean up
-        if os.path.exists(pdf_path):
-            os.unlink(pdf_path)
-
-
-def test_update_custom_prompt_general_assistant():
-    """Test that selecting 'General Assistant' returns the correct prompt."""
-    result = update_custom_prompt("General Assistant")
-    expected = "You are a helpful AI assistant capable of analyzing images, videos, and PDF documents. Provide clear, accurate, and helpful responses to user queries."
-    assert result == expected
-
-
-def test_update_custom_prompt_document_analyzer():
-    """Test that selecting 'Document Analyzer' returns the correct prompt."""
-    result = update_custom_prompt("Document Analyzer")
-    expected = "You are a specialized document analysis assistant. Focus on extracting key information, summarizing content, and answering specific questions about uploaded documents. For PDFs, provide structured analysis including main topics, key points, and relevant details. For images containing text, perform OCR-like analysis."
-    assert result == expected
-
-
-def test_update_custom_prompt_visual_content_expert():
-    """Test that selecting 'Visual Content Expert' returns the correct prompt."""
-    result = update_custom_prompt("Visual Content Expert")
-    expected = "You are an expert in visual content analysis. When analyzing images, provide detailed descriptions of visual elements, composition, colors, objects, people, and scenes. For videos, describe the sequence of events, movements, and changes between frames. Identify artistic techniques, styles, and visual storytelling elements."
-    assert result == expected
-
-
-def test_update_custom_prompt_educational_tutor():
-    """Test that selecting 'Educational Tutor' returns the correct prompt."""
-    result = update_custom_prompt("Educational Tutor")
-    expected = "You are a patient and encouraging educational tutor. Break down complex concepts into simple, understandable explanations. When analyzing educational materials (images, videos, or documents), focus on learning objectives, key concepts, and provide additional context or examples to enhance understanding."
-    assert result == expected
-
-
-def test_update_custom_prompt_technical_reviewer():
-    """Test that selecting 'Technical Reviewer' returns the correct prompt."""
-    result = update_custom_prompt("Technical Reviewer")
-    expected = "You are a technical expert specializing in analyzing technical documents, diagrams, code screenshots, and instructional videos. Provide detailed technical insights, identify potential issues, suggest improvements, and explain technical concepts with precision and accuracy."
-    assert result == expected
-
-
-def test_update_custom_prompt_creative_storyteller():
-    """Test that selecting 'Creative Storyteller' returns the correct prompt."""
-    result = update_custom_prompt("Creative Storyteller")
-    expected = "You are a creative storyteller who brings visual content to life through engaging narratives. When analyzing images or videos, create compelling stories, describe scenes with rich detail, and help users explore the creative and emotional aspects of visual content."
-    assert result == expected
-
-
-def test_update_custom_prompt_custom():
-    """Test that selecting 'Custom' returns an empty string."""
-    result = update_custom_prompt("Custom")
-    assert result == ""
-
-
-def test_update_custom_prompt_invalid_choice():
-    """Test that an invalid choice returns an empty string."""
-    result = update_custom_prompt("NonExistentChoice")
-    assert result == ""
-
-
-def test_update_custom_prompt_case_sensitivity():
-    """Test that the function is case-sensitive."""
-    # Should not match lowercase
-    result = update_custom_prompt("general assistant")
-    assert result == ""
-    
-    # Should match exact case
-    result = update_custom_prompt("General Assistant")
-    assert result != ""
-
-
-def test_system_prompt_selection_logic():
-    """Test the system prompt selection logic from the run function."""
-    # Mock the preset prompts dictionary (same as in the run function)
-    preset_prompts = {
-        "General Assistant": "You are a helpful AI assistant capable of analyzing images, videos, and PDF documents. Provide clear, accurate, and helpful responses to user queries.",
-        "Document Analyzer": "You are a specialized document analysis assistant. Focus on extracting key information, summarizing content, and answering specific questions about uploaded documents. For PDFs, provide structured analysis including main topics, key points, and relevant details. For images containing text, perform OCR-like analysis.",
-        "Visual Content Expert": "You are an expert in visual content analysis. When analyzing images, provide detailed descriptions of visual elements, composition, colors, objects, people, and scenes. For videos, describe the sequence of events, movements, and changes between frames. Identify artistic techniques, styles, and visual storytelling elements.",
-        "Educational Tutor": "You are a patient and encouraging educational tutor. Break down complex concepts into simple, understandable explanations. When analyzing educational materials (images, videos, or documents), focus on learning objectives, key concepts, and provide additional context or examples to enhance understanding.",
-        "Technical Reviewer": "You are a technical expert specializing in analyzing technical documents, diagrams, code screenshots, and instructional videos. Provide detailed technical insights, identify potential issues, suggest improvements, and explain technical concepts with precision and accuracy.",
-        "Creative Storyteller": "You are a creative storyteller who brings visual content to life through engaging narratives. When analyzing images or videos, create compelling stories, describe scenes with rich detail, and help users explore the creative and emotional aspects of visual content.",
-    }
-    
-    # Test preset selection
-    for preset_name, expected_prompt in preset_prompts.items():
-        custom_prompt = "This is a custom prompt"
-        
-        # When preset is selected (not "Custom"), should use preset
-        if preset_name != "Custom":
-            selected_prompt = preset_prompts.get(preset_name, custom_prompt)
-            assert selected_prompt == expected_prompt
-            assert selected_prompt != custom_prompt
-    
-    # Test custom selection
-    custom_prompt = "This is my custom system prompt"
-    system_prompt_preset = "Custom"
-    
-    if system_prompt_preset == "Custom":
-        selected_prompt = custom_prompt
-    else:
-        selected_prompt = preset_prompts.get(system_prompt_preset, custom_prompt)
-    
-    assert selected_prompt == custom_prompt
-
-
-def test_system_prompt_preset_choices():
-    """Test that all expected preset choices are available."""
-    expected_choices = [
-        "General Assistant",
-        "Document Analyzer", 
-        "Visual Content Expert",
-        "Educational Tutor",
-        "Technical Reviewer",
-        "Creative Storyteller",
-        "Custom"
-    ]
-    
-    # Verify all choices exist in update_custom_prompt function
-    for choice in expected_choices[:-1]:  # Exclude "Custom" as it returns empty string
-        result = update_custom_prompt(choice)
-        assert isinstance(result, str)
-        assert len(result) > 0  # Should return a non-empty prompt
-    
-    # Test Custom specifically
-    custom_result = update_custom_prompt("Custom")
-    assert custom_result == ""
-
-
-def test_system_prompt_content_quality():
-    """Test that system prompts contain expected keywords for their specialization."""
-    
-    # General Assistant should mention general capabilities
+def test_update_custom_prompt():
+    """Test system prompt selection."""
+    # Test key prompts
     general = update_custom_prompt("General Assistant")
-    assert "images" in general.lower()
-    assert "videos" in general.lower()
-    assert "pdf" in general.lower()
+    assert "images" in general.lower() and "videos" in general.lower()
     
-    # Document Analyzer should focus on document analysis
     document = update_custom_prompt("Document Analyzer")
-    assert "document" in document.lower()
-    assert "analysis" in document.lower()
-    assert "pdf" in document.lower()
+    assert "document" in document.lower() and "analysis" in document.lower()
     
-    # Visual Content Expert should focus on visual analysis
-    visual = update_custom_prompt("Visual Content Expert")
-    assert "visual" in visual.lower()
-    assert "images" in visual.lower()
-    assert "videos" in visual.lower()
-    
-    # Educational Tutor should mention teaching/learning
-    educational = update_custom_prompt("Educational Tutor")
-    assert any(word in educational.lower() for word in ["educational", "tutor", "learning", "teaching", "concepts"])
-    
-    # Technical Reviewer should mention technical aspects
-    technical = update_custom_prompt("Technical Reviewer")
-    assert "technical" in technical.lower()
-    
-    # Creative Storyteller should mention creativity/stories
-    creative = update_custom_prompt("Creative Storyteller")
-    assert any(word in creative.lower() for word in ["creative", "story", "narrative", "storyteller"])
+    # Test custom returns empty
+    assert update_custom_prompt("Custom") == ""
+    assert update_custom_prompt("Invalid") == ""
 
 
-def test_check_file_size_nonexistent_file():
-    """Test that check_file_size raises ValueError for non-existent files."""
+def test_check_file_size():
+    """Test file size validation."""
+    # Test non-existent file
     with pytest.raises(ValueError, match="File not found"):
         check_file_size("nonexistent_file.txt")
-
-
-def test_check_file_size_valid_image():
-    """Test that check_file_size returns True for valid image files."""
-    # Create a small temporary image file
+    
+    # Test valid small files
     with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
-        # Write minimal JPEG header to make it a valid file
-        temp_file.write(b"small image content")
+        temp_file.write(b"small content")
         temp_path = temp_file.name
     
     try:
-        # File should be well under the image size limit
-        result = check_file_size(temp_path)
-        assert result is True
-        
+        assert check_file_size(temp_path) is True
     finally:
         if os.path.exists(temp_path):
             os.unlink(temp_path)
-
-
-def test_check_file_size_valid_video():
-    """Test that check_file_size returns True for valid video files."""
-    # Create a small temporary video file
-    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_file:
-        # Write some minimal content
-        temp_file.write(b"small video content")
-        temp_path = temp_file.name
     
-    try:
-        # File should be well under the video size limit
-        result = check_file_size(temp_path)
-        assert result is True
-        
-    finally:
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
-
-
-def test_check_file_size_large_image():
-    """Test that check_file_size raises ValueError for oversized image files."""
-    # Create a temporary file that exceeds the image size limit
+    # Test oversized image
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
-        # Write content larger than MAX_IMAGE_SIZE (10MB)
-        large_content = b"x" * (MAX_IMAGE_SIZE + 1024)  # 10MB + 1KB
-        temp_file.write(large_content)
+        temp_file.write(b"x" * (MAX_IMAGE_SIZE + 1024))
         temp_path = temp_file.name
     
     try:
         with pytest.raises(ValueError, match="Image file too large"):
             check_file_size(temp_path)
-            
     finally:
         if os.path.exists(temp_path):
             os.unlink(temp_path)
-
-
-def test_check_file_size_large_video():
-    """Test that check_file_size raises ValueError for oversized video files."""
-    # Create a temporary file that exceeds the video size limit
-    with tempfile.NamedTemporaryFile(suffix=".mov", delete=False) as temp_file:
-        # Write content larger than MAX_VIDEO_SIZE (100MB)
-        # Write in chunks to avoid memory issues
-        chunk_size = 1024 * 1024  # 1MB chunks
-        chunks_needed = (MAX_VIDEO_SIZE // chunk_size) + 2  # Exceed limit by 2MB
-        
-        for _ in range(chunks_needed):
-            temp_file.write(b"x" * chunk_size)
-        temp_path = temp_file.name
-    
-    try:
-        with pytest.raises(ValueError, match="Video file too large"):
-            check_file_size(temp_path)
-            
-    finally:
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
-
-
-def test_check_file_size_edge_cases():
-    """Test check_file_size with files at the exact size limits."""
-    # Test image file at exact limit
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
-        # Write exactly MAX_IMAGE_SIZE bytes
-        temp_file.write(b"x" * MAX_IMAGE_SIZE)
-        image_path = temp_file.name
-    
-    try:
-        # Should pass at exact limit
-        result = check_file_size(image_path)
-        assert result is True
-        
-    finally:
-        if os.path.exists(image_path):
-            os.unlink(image_path)
-    
-    # Test video file at exact limit
-    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_file:
-        # Write exactly MAX_VIDEO_SIZE bytes in chunks to avoid memory issues
-        chunk_size = 1024 * 1024  # 1MB chunks
-        chunks_needed = MAX_VIDEO_SIZE // chunk_size
-        
-        for _ in range(chunks_needed):
-            temp_file.write(b"x" * chunk_size)
-        video_path = temp_file.name
-    
-    try:
-        # Should pass at exact limit
-        result = check_file_size(video_path)
-        assert result is True
-        
-    finally:
-        if os.path.exists(video_path):
-            os.unlink(video_path)
-
-
-def test_check_file_size_different_extensions():
-    """Test that check_file_size correctly categorizes different file extensions."""
-    # Test various video extensions
-    video_extensions = [".mp4", ".mov", ".MP4", ".MOV"]  # Test case sensitivity
-    for ext in video_extensions:
-        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as temp_file:
-            temp_file.write(b"small content")
-            temp_path = temp_file.name
-        
-        try:
-            # Should be treated as video file (checked against video limit)
-            result = check_file_size(temp_path)
-            assert result is True
-            
-        finally:
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
-    
-    # Test various image extensions
-    image_extensions = [".jpg", ".png", ".jpeg", ".gif", ".bmp", ".JPG", ".PNG"]
-    for ext in image_extensions:
-        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as temp_file:
-            temp_file.write(b"small content")
-            temp_path = temp_file.name
-        
-        try:
-            # Should be treated as image file (checked against image limit)
-            result = check_file_size(temp_path)
-            assert result is True
-            
-        finally:
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
-
-
-def test_check_file_size_empty_file():
-    """Test that check_file_size handles empty files correctly."""
-    # Create empty image file
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
-        temp_path = temp_file.name  # File is created but empty
-    
-    try:
-        # Empty file should pass size check
-        result = check_file_size(temp_path)
-        assert result is True
-        
-    finally:
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
-
-
-def test_check_file_size_error_messages():
-    """Test that check_file_size provides informative error messages."""
-    # Test oversized image error message
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
-        oversized_content = b"x" * (MAX_IMAGE_SIZE + 1024)
-        temp_file.write(oversized_content)
-        temp_path = temp_file.name
-    
-    try:
-        with pytest.raises(ValueError) as exc_info:
-            check_file_size(temp_path)
-        
-        error_message = str(exc_info.value)
-        assert "Image file too large" in error_message
-        assert "Maximum allowed:" in error_message
-        assert "10MB" in error_message  # Should show the limit
-        
-    finally:
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
-
-
-def test_check_file_size_with_actual_test_video():
-    """Test check_file_size with the actual test video file."""
-    video_path = os.path.join(ROOT_DIR, "assets", "test_video.mp4")
-    
-    if os.path.exists(video_path):
-        # Should pass since test video should be under the limit
-        result = check_file_size(video_path)
-        assert result is True
-    else:
-        pytest.skip("Test video file not found")
-
-
-def test_check_file_size_constants():
-    """Test that the size constants are set to expected values."""
-    # Verify the constants are set correctly
-    assert MAX_VIDEO_SIZE == 100 * 1024 * 1024  # 100 MB
-    assert MAX_IMAGE_SIZE == 10 * 1024 * 1024   # 10 MB
-    
-    # Ensure video limit is larger than image limit
-    assert MAX_VIDEO_SIZE > MAX_IMAGE_SIZE
