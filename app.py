@@ -128,7 +128,7 @@ def extract_pdf_text(pdf_path: str) -> str:
     
     except Exception as e:
         logger.error(f"Error extracting text from PDF {pdf_path}: {e}")
-        return ValueError(f"Failed to extract text from PDF: {str(e)}")
+        raise ValueError(f"Failed to extract text from PDF: {str(e)}")
 
 
 def process_user_input(message: dict, max_images: int) -> list[dict]:
@@ -153,8 +153,13 @@ def process_user_input(message: dict, max_images: int) -> list[dict]:
                 result_content.append({"type": "text", "text": f"Error processing video: {str(e)}"})
         elif file_path.lower().endswith(".pdf"):
             try:
+                logger.info(f"Processing PDF file: {file_path}")
                 pdf_text = extract_pdf_text(file_path)
+                logger.debug(f"PDF text extracted successfully, length: {len(pdf_text)} characters")
                 result_content.append({"type": "text", "text": f"PDF Content:\n{pdf_text}"})
+            except ValueError as ve:
+                logger.error(f"PDF validation failed: {ve}")
+                result_content.append({"type": "text", "text": f"Error processing PDF: {str(ve)}"})
             except Exception as e:
                 logger.error(f"PDF processing failed: {e}")
                 result_content.append({"type": "text", "text": f"Error processing PDF: {str(e)}"})
@@ -255,9 +260,15 @@ def run(
                 {"role": "system", "content": [{"type": "text", "text": system_prompt}]}
             )
         messages.extend(process_history(history))
+        user_content = process_user_input(message, max_images)
         messages.append(
-            {"role": "user", "content": process_user_input(message, max_images)}
+            {"role": "user", "content": user_content}
         )
+        
+        # Validate messages structure before processing
+        logger.debug(f"Final messages structure: {len(messages)} messages")
+        for i, msg in enumerate(messages):
+            logger.debug(f"Message {i}: role={msg.get('role', 'MISSING')}, content_type={type(msg.get('content', 'MISSING'))}")
 
         inputs = input_processor.apply_chat_template(
             messages,
@@ -281,7 +292,19 @@ def run(
             do_sample=True,
         )
         
-        t = Thread(target=selected_model.generate, kwargs=generate_kwargs)
+        # Wrapper function to catch thread exceptions
+        def safe_generate():
+            try:
+                selected_model.generate(**generate_kwargs)
+            except Exception as thread_e:
+                logger.error(f"Exception in generation thread: {thread_e}")
+                logger.error(f"Thread exception type: {type(thread_e)}")
+                # Store the exception so we can handle it in the main thread
+                import traceback
+                logger.error(f"Thread traceback: {traceback.format_exc()}")
+                raise
+        
+        t = Thread(target=safe_generate)
         t.start()
 
         output = ""
@@ -335,7 +358,18 @@ def run(
                 do_sample=True,
             )
             
-            t = Thread(target=selected_model.generate, kwargs=generate_kwargs)
+            # Wrapper function to catch thread exceptions in fallback
+            def safe_fallback_generate():
+                try:
+                    selected_model.generate(**generate_kwargs)
+                except Exception as thread_e:
+                    logger.error(f"Exception in fallback generation thread: {thread_e}")
+                    logger.error(f"Fallback thread exception type: {type(thread_e)}")
+                    import traceback
+                    logger.error(f"Fallback thread traceback: {traceback.format_exc()}")
+                    raise
+            
+            t = Thread(target=safe_fallback_generate)
             t.start()
 
             output = f"⚠️ Switched to {fallback_name} due to {current_model_name} failure.\n\n"
