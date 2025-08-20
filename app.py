@@ -239,46 +239,142 @@ def run(
         f"system_prompt: {system_prompt} \n model_choice: {model_choice} \n max_new_tokens: {max_new_tokens} \n max_images: {max_images}"
     )
 
+    def try_fallback_model(original_model_choice: str):
+        fallback_model = model_3n if original_model_choice == "Gemma 3 12B" else model_12
+        fallback_name = "Gemma 3n E4B" if original_model_choice == "Gemma 3 12B" else "Gemma 3 12B"
+        logger.info(f"Attempting fallback to {fallback_name} model")
+        return fallback_model, fallback_name
+
     selected_model = model_12 if model_choice == "Gemma 3 12B" else model_3n
+    current_model_name = model_choice
 
-    messages = []
-    if system_prompt:
+    try:
+        messages = []
+        if system_prompt:
+            messages.append(
+                {"role": "system", "content": [{"type": "text", "text": system_prompt}]}
+            )
+        messages.extend(process_history(history))
         messages.append(
-            {"role": "system", "content": [{"type": "text", "text": system_prompt}]}
+            {"role": "user", "content": process_user_input(message, max_images)}
         )
-    messages.extend(process_history(history))
-    messages.append(
-        {"role": "user", "content": process_user_input(message, max_images)}
-    )
 
-    inputs = input_processor.apply_chat_template(
-        messages,
-        add_generation_prompt=True,
-        tokenize=True,
-        return_dict=True,
-        return_tensors="pt",
-    ).to(device=selected_model.device, dtype=torch.bfloat16)
+        inputs = input_processor.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+        ).to(device=selected_model.device, dtype=torch.bfloat16)
 
-    streamer = TextIteratorStreamer(
-        input_processor, skip_prompt=True, skip_special_tokens=True, timeout=60.0
-    )
-    generate_kwargs = dict(
-        inputs,
-        streamer=streamer,
-        max_new_tokens=max_new_tokens,
-        temperature=temperature,
-        top_p=top_p,
-        top_k=top_k,
-        repetition_penalty=repetition_penalty,
-        do_sample=True,
-    )
-    t = Thread(target=selected_model.generate, kwargs=generate_kwargs)
-    t.start()
+        streamer = TextIteratorStreamer(
+            input_processor, skip_prompt=True, skip_special_tokens=True, timeout=60.0
+        )
+        generate_kwargs = dict(
+            inputs,
+            streamer=streamer,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            repetition_penalty=repetition_penalty,
+            do_sample=True,
+        )
+        
+        t = Thread(target=selected_model.generate, kwargs=generate_kwargs)
+        t.start()
 
-    output = ""
-    for delta in streamer:
-        output += delta
-        yield output
+        output = ""
+        generation_failed = False
+        
+        try:
+            for delta in streamer:
+                if delta is None:
+                    continue
+                output += delta
+                yield output
+                
+        except Exception as stream_error:
+            logger.error(f"Streaming failed with {current_model_name}: {stream_error}")
+            generation_failed = True
+            
+        # Wait for thread to complete
+        t.join(timeout=120)  # 2 minute timeout
+        
+        if t.is_alive() or generation_failed or not output.strip():
+            raise Exception(f"Generation failed or timed out with {current_model_name}")
+            
+    except Exception as primary_error:
+        logger.error(f"Primary model ({current_model_name}) failed: {primary_error}")
+        
+        # Try fallback model
+        try:
+            selected_model, fallback_name = try_fallback_model(model_choice)
+            logger.info(f"Switching to fallback model: {fallback_name}")
+            
+            # Rebuild inputs for fallback model
+            inputs = input_processor.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                tokenize=True,
+                return_dict=True,
+                return_tensors="pt",
+            ).to(device=selected_model.device, dtype=torch.bfloat16)
+
+            streamer = TextIteratorStreamer(
+                input_processor, skip_prompt=True, skip_special_tokens=True, timeout=60.0
+            )
+            generate_kwargs = dict(
+                inputs,
+                streamer=streamer,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+                repetition_penalty=repetition_penalty,
+                do_sample=True,
+            )
+            
+            t = Thread(target=selected_model.generate, kwargs=generate_kwargs)
+            t.start()
+
+            output = f"⚠️ Switched to {fallback_name} due to {current_model_name} failure.\n\n"
+            yield output
+            
+            try:
+                for delta in streamer:
+                    if delta is None:
+                        continue
+                    output += delta
+                    yield output
+            except Exception as fallback_stream_error:
+                logger.error(f"Fallback streaming failed: {fallback_stream_error}")
+                raise fallback_stream_error
+                
+            # Wait for fallback thread
+            t.join(timeout=120)
+            
+            if t.is_alive() or not output.strip():
+                raise Exception(f"Fallback model {fallback_name} also failed")
+                
+        except Exception as fallback_error:
+            logger.error(f"Fallback model also failed: {fallback_error}")
+            
+            # Final fallback - return error message
+            error_message = (
+                "❌ **Generation Failed**\n\n"
+                f"Both {model_choice} and fallback model encountered errors. "
+                "This could be due to:\n"
+                "- High server load\n"
+                "- Memory constraints\n"
+                "- Input complexity\n\n"
+                "**Suggestions:**\n"
+                "- Try reducing max tokens or image count\n"
+                "- Simplify your prompt\n"
+                "- Try again in a few moments\n\n"
+                f"*Error details: {str(primary_error)[:200]}...*"
+            )
+            yield error_message
 
 
 demo = gr.ChatInterface(
