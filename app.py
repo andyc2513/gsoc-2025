@@ -28,30 +28,21 @@ model_3n_id = os.getenv("MODEL_3N_ID", "google/gemma-3n-E4B-it")
 MAX_VIDEO_SIZE = 100 * 1024 * 1024  # 100 MB
 MAX_IMAGE_SIZE = 10 * 1024 * 1024   # 10 MB
 
-# Skip model loading during tests
-SKIP_MODEL_LOADING = os.getenv("SKIP_MODEL_LOADING", "false").lower() == "true"
+input_processor = Gemma3Processor.from_pretrained(model_12_id)
 
-if not SKIP_MODEL_LOADING:
-    input_processor = Gemma3Processor.from_pretrained(model_12_id)
+model_12 = Gemma3ForConditionalGeneration.from_pretrained(
+    model_12_id,
+    torch_dtype=torch.bfloat16,
+    device_map="auto",
+    attn_implementation="eager",
+)
 
-    model_12 = Gemma3ForConditionalGeneration.from_pretrained(
-        model_12_id,
-        torch_dtype=torch.bfloat16,
-        device_map="auto",
-        attn_implementation="eager",
-    )
-
-    model_3n = Gemma3nForConditionalGeneration.from_pretrained(
-        model_3n_id,
-        torch_dtype=torch.bfloat16,
-        device_map="auto",
-        attn_implementation="eager",
-    )
-else:
-    # Mock objects for testing
-    input_processor = None
-    model_12 = None
-    model_3n = None
+model_3n = Gemma3nForConditionalGeneration.from_pretrained(
+    model_3n_id,
+    torch_dtype=torch.bfloat16,
+    device_map="auto",
+    attn_implementation="eager",
+)
 
 
 def check_file_size(file_path: str) -> bool:
