@@ -240,11 +240,6 @@ def run(
     )
 
     selected_model = model_12 if model_choice == "Gemma 3 12B" else model_3n
-    
-    # If models are skipped (during testing), return a mock response
-    if SKIP_MODEL_LOADING or selected_model is None or input_processor is None:
-        yield "Mock response for testing - models are not loaded."
-        return
 
     messages = []
     if system_prompt:
