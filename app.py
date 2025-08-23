@@ -68,6 +68,16 @@ def run(
         f"system_prompt: {system_prompt} \n model_choice: {model_choice} \n max_new_tokens: {max_new_tokens} \n max_images: {max_images}"
     )
 
+    # Validate audio files are only used with 3n model
+    if message.get("files"):
+        audio_extensions = [".wav", ".mp3", ".m4a", ".flac", ".ogg"]
+        has_audio = any(any(file.lower().endswith(ext) for ext in audio_extensions) for file in message["files"])
+        
+        if has_audio and model_choice != "Gemma 3n E4B":
+            error_msg = "❌ **Audio files are only supported with the Gemma 3n E4B model.**\n\nPlease switch to the Gemma 3n E4B model to process audio files, or remove audio files to continue with the current model."
+            yield error_msg
+            return
+
     def try_fallback_model(original_model_choice: str):
         fallback_model = model_3n if original_model_choice == "Gemma 3 12B" else model_12
         fallback_name = "Gemma 3n E4B" if original_model_choice == "Gemma 3 12B" else "Gemma 3 12B"
@@ -235,13 +245,26 @@ def run(
             yield error_message
 
 
+def update_file_types(model_choice):
+    """Update allowed file types based on model selection."""
+    base_types = [".mp4", ".jpg", ".png", ".pdf"]
+    if model_choice == "Gemma 3n E4B":
+        # Add audio file types for 3n model
+        return base_types + [".wav", ".mp3", ".m4a", ".flac", ".ogg"]
+    return base_types
+
+# Create a custom textbox that we can update
+custom_textbox = gr.MultimodalTextbox(
+    file_types=[".mp4", ".jpg", ".png", ".pdf"], 
+    file_count="multiple", 
+    autofocus=True
+)
+
 demo = gr.ChatInterface(
     fn=run,
     type="messages",
     chatbot=gr.Chatbot(type="messages", scale=1, allow_tags=["image"]),
-    textbox=gr.MultimodalTextbox(
-        file_types=[".mp4", ".jpg", ".png", ".pdf"], file_count="multiple", autofocus=True
-    ),
+    textbox=custom_textbox,
     multimodal=True,
     additional_inputs=[
         gr.Dropdown(
@@ -268,7 +291,7 @@ demo = gr.ChatInterface(
             label="Model",
             choices=["Gemma 3 12B", "Gemma 3n E4B"],
             value="Gemma 3 12B",
-            info="Gemma 3 12B: More powerful and detailed responses, but slower processing. Gemma 3n E4B: Faster processing with efficient performance for most tasks."
+            info="Gemma 3 12B: More powerful and detailed responses, supports images, videos, and PDFs. Gemma 3n E4B: Faster processing with efficient performance, supports images, videos, PDFs, and audio files."
         ),
         gr.Slider(
             label="Max New Tokens", minimum=100, maximum=2000, step=10, value=700
@@ -293,11 +316,29 @@ demo = gr.ChatInterface(
 # Connect the dropdown to update the textbox
 with demo:
     preset_dropdown = demo.additional_inputs[0]
-    custom_textbox = demo.additional_inputs[1]
+    custom_textbox_input = demo.additional_inputs[1]
+    model_dropdown = demo.additional_inputs[2]
+    
+    # Update custom prompt when preset changes
     preset_dropdown.change(
         fn=update_custom_prompt,
         inputs=[preset_dropdown],
-        outputs=[custom_textbox]
+        outputs=[custom_textbox_input]
+    )
+    
+    # Update file types when model changes
+    def update_textbox_file_types(model_choice):
+        allowed_types = update_file_types(model_choice)
+        return gr.MultimodalTextbox(
+            file_types=allowed_types, 
+            file_count="multiple", 
+            autofocus=True
+        )
+    
+    model_dropdown.change(
+        fn=update_textbox_file_types,
+        inputs=[model_dropdown],
+        outputs=[demo.textbox]
     )
 
 if __name__ == "__main__":
