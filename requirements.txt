@@ -10,4 +10,3 @@ python-dotenv
 opencv-python
 timm
 pymupdf
-librosa

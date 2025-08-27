@@ -2,15 +2,12 @@ import os
 import cv2
 import fitz
 import tempfile
-import librosa
-import numpy as np
 from PIL import Image
 from loguru import logger
 
 # Constants
 MAX_VIDEO_SIZE = 100 * 1024 * 1024  # 100 MB
 MAX_IMAGE_SIZE = 10 * 1024 * 1024   # 10 MB
-MAX_AUDIO_SIZE = 50 * 1024 * 1024   # 50 MB
 
 PRESET_PROMPTS = {
     "General Assistant": "You are a helpful AI assistant capable of analyzing images, videos, and PDF documents. Provide clear, accurate, and helpful responses to user queries.",
@@ -32,17 +29,13 @@ def check_file_size(file_path: str) -> bool:
         raise ValueError(f"File not found: {file_path}")
     
     file_size = os.path.getsize(file_path)
-    file_lower = file_path.lower()
     
-    if file_lower.endswith((".mp4", ".mov")):
+    if file_path.lower().endswith((".mp4", ".mov")):
         if file_size > MAX_VIDEO_SIZE:
             raise ValueError(f"Video file too large: {file_size / (1024*1024):.1f}MB. Maximum allowed: {MAX_VIDEO_SIZE / (1024*1024):.0f}MB")
-    elif file_lower.endswith((".wav", ".mp3", ".m4a", ".flac", ".ogg")):
-        if file_size > MAX_AUDIO_SIZE:
-            raise ValueError(f"Audio file too large: {file_size / (1024*1024):.1f}MB. Maximum allowed: {MAX_AUDIO_SIZE / (1024*1024):.0f}MB")
     else:
         if file_size > MAX_IMAGE_SIZE:
-            raise ValueError(f"Image/document file too large: {file_size / (1024*1024):.1f}MB. Maximum allowed: {MAX_IMAGE_SIZE / (1024*1024):.0f}MB")
+            raise ValueError(f"Image file too large: {file_size / (1024*1024):.1f}MB. Maximum allowed: {MAX_IMAGE_SIZE / (1024*1024):.0f}MB")
     
     return True
 
@@ -94,44 +87,6 @@ def process_video(video_path: str, max_images: int) -> list[dict]:
     return result_content
 
 
-def process_audio(audio_path: str) -> list[dict]:
-    """Process an audio file and return formatted content for the model."""
-    check_file_size(audio_path)
-    
-    try:
-        # Load audio file
-        audio_data, sample_rate = librosa.load(audio_path, sr=None)
-        duration = len(audio_data) / sample_rate
-        
-        # Get basic audio features
-        rms = librosa.feature.rms(y=audio_data)[0]
-        spectral_centroids = librosa.feature.spectral_centroid(y=audio_data, sr=sample_rate)[0]
-        zero_crossings = librosa.zero_crossings(audio_data, pad=False)
-        
-        # Calculate statistics
-        avg_rms = np.mean(rms)
-        avg_spectral_centroid = np.mean(spectral_centroids)
-        zcr_rate = np.sum(zero_crossings) / len(audio_data)
-        
-        # Create audio analysis text
-        audio_analysis = f"""Audio Analysis:
-- Duration: {duration:.2f} seconds
-- Sample Rate: {sample_rate} Hz
-- Average RMS Energy: {avg_rms:.4f}
-- Average Spectral Centroid: {avg_spectral_centroid:.2f} Hz
-- Zero Crossing Rate: {zcr_rate:.4f}
-- File: {os.path.basename(audio_path)}"""
-        
-        result_content = [{"type": "text", "text": audio_analysis}]
-        
-        logger.debug(f"Processed audio file {audio_path} - Duration: {duration:.2f}s")
-        return result_content
-        
-    except Exception as e:
-        logger.error(f"Error processing audio {audio_path}: {e}")
-        raise ValueError(f"Failed to process audio file: {str(e)}")
-
-
 def extract_pdf_text(pdf_path: str) -> str:
     """Extract text content from a PDF file."""
     check_file_size(pdf_path)
@@ -172,22 +127,14 @@ def process_user_input(message: dict, max_images: int) -> list[dict]:
             logger.error(f"File size check failed: {e}")
             result_content.append({"type": "text", "text": f"Error: {str(e)}"})
             continue
-        
-        file_lower = file_path.lower()
             
-        if file_lower.endswith((".mp4", ".mov")):
+        if file_path.endswith((".mp4", ".mov")):
             try:
                 result_content = [*result_content, *process_video(file_path, max_images)]
             except Exception as e:
                 logger.error(f"Video processing failed: {e}")
                 result_content.append({"type": "text", "text": f"Error processing video: {str(e)}"})
-        elif file_lower.endswith((".wav", ".mp3", ".m4a", ".flac", ".ogg")):
-            try:
-                result_content = [*result_content, *process_audio(file_path)]
-            except Exception as e:
-                logger.error(f"Audio processing failed: {e}")
-                result_content.append({"type": "text", "text": f"Error processing audio: {str(e)}"})
-        elif file_lower.endswith(".pdf"):
+        elif file_path.lower().endswith(".pdf"):
             try:
                 logger.info(f"Processing PDF file: {file_path}")
                 pdf_text = extract_pdf_text(file_path)
@@ -228,12 +175,9 @@ def process_history(history: list[dict]) -> list[dict]:
                 content_buffer.append({"type": "text", "text": content})
             elif isinstance(content, tuple) and len(content) > 0:
                 file_path = content[0]
-                file_lower = file_path.lower()
-                if file_lower.endswith((".mp4", ".mov")):
+                if file_path.endswith((".mp4", ".mov")):
                     content_buffer.append({"type": "text", "text": "[Video uploaded previously]"})
-                elif file_lower.endswith((".wav", ".mp3", ".m4a", ".flac", ".ogg")):
-                    content_buffer.append({"type": "text", "text": "[Audio uploaded previously]"})
-                elif file_lower.endswith(".pdf"):
+                elif file_path.lower().endswith(".pdf"):
                     content_buffer.append({"type": "text", "text": "[PDF uploaded previously]"})
                 else:
                     content_buffer.append({"type": "image", "url": file_path})
