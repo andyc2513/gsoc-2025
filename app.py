@@ -6,6 +6,7 @@ from transformers import (
     TextIteratorStreamer,
     Gemma3Processor,
     Gemma3nForConditionalGeneration,
+    Gemma3nProcessor
 )
 import spaces
 from threading import Thread
@@ -22,7 +23,8 @@ load_dotenv(dotenv_path)
 model_12_id = os.getenv("MODEL_12_ID", "google/gemma-3-12b-it")
 model_3n_id = os.getenv("MODEL_3N_ID", "google/gemma-3n-E4B-it")
 
-input_processor = Gemma3Processor.from_pretrained(model_12_id)
+input_processor_12 = Gemma3Processor.from_pretrained(model_12_id)
+input_processor_3n = Gemma3nProcessor.from_pretrained(model_3n_id)
 
 model_12 = Gemma3ForConditionalGeneration.from_pretrained(
     model_12_id,
@@ -70,11 +72,13 @@ def run(
 
     def try_fallback_model(original_model_choice: str):
         fallback_model = model_3n if original_model_choice == "Gemma 3 12B" else model_12
+        fallback_processor = input_processor_3n if original_model_choice == "Gemma 3 12B" else input_processor_12
         fallback_name = "Gemma 3n E4B" if original_model_choice == "Gemma 3 12B" else "Gemma 3 12B"
         logger.info(f"Attempting fallback to {fallback_name} model")
-        return fallback_model, fallback_name
+        return fallback_model, fallback_processor, fallback_name
 
     selected_model = model_12 if model_choice == "Gemma 3 12B" else model_3n
+    selected_processor = input_processor_12 if model_choice == "Gemma 3 12B" else input_processor_3n
     current_model_name = model_choice
 
     try:
@@ -94,7 +98,7 @@ def run(
         for i, msg in enumerate(messages):
             logger.debug(f"Message {i}: role={msg.get('role', 'MISSING')}, content_type={type(msg.get('content', 'MISSING'))}")
 
-        inputs = input_processor.apply_chat_template(
+        inputs = selected_processor.apply_chat_template(
             messages,
             add_generation_prompt=True,
             tokenize=True,
@@ -103,7 +107,7 @@ def run(
         ).to(device=selected_model.device, dtype=torch.bfloat16)
 
         streamer = TextIteratorStreamer(
-            input_processor, skip_prompt=True, skip_special_tokens=True, timeout=60.0
+            selected_processor, skip_prompt=True, skip_special_tokens=True, timeout=60.0
         )
         generate_kwargs = dict(
             inputs,
@@ -156,11 +160,11 @@ def run(
         
         # Try fallback model
         try:
-            selected_model, fallback_name = try_fallback_model(model_choice)
+            selected_model, fallback_processor, fallback_name = try_fallback_model(model_choice)
             logger.info(f"Switching to fallback model: {fallback_name}")
             
             # Rebuild inputs for fallback model
-            inputs = input_processor.apply_chat_template(
+            inputs = fallback_processor.apply_chat_template(
                 messages,
                 add_generation_prompt=True,
                 tokenize=True,
@@ -169,7 +173,7 @@ def run(
             ).to(device=selected_model.device, dtype=torch.bfloat16)
 
             streamer = TextIteratorStreamer(
-                input_processor, skip_prompt=True, skip_special_tokens=True, timeout=60.0
+                fallback_processor, skip_prompt=True, skip_special_tokens=True, timeout=60.0
             )
             generate_kwargs = dict(
                 inputs,
