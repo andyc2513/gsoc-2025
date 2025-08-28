@@ -5,7 +5,7 @@ from PIL import Image
 from pathlib import Path
 import tempfile
 
-from app import get_frames, process_video, process_user_input, process_history, extract_pdf_text, update_custom_prompt, check_file_size, MAX_VIDEO_SIZE, MAX_IMAGE_SIZE
+from utils import get_frames, process_video, process_user_input, process_history, extract_pdf_text, update_custom_prompt, check_file_size, MAX_VIDEO_SIZE, MAX_IMAGE_SIZE
 
 # Get the project root directory
 ROOT_DIR = Path(__file__).parent.parent
