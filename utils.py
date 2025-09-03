@@ -24,7 +24,21 @@ PRESET_PROMPTS = {
 }
 
 def check_file_size(file_path: str) -> bool:
-    """Check if a file meets the size requirements."""
+    """Check if a file meets the size requirements for processing.
+
+    Validates that the file exists and is within the allowed size limits based on file type.
+    Video files (.mp4, .mov) have a limit of 100MB, while image files have a limit of 10MB.
+
+    Args:
+        file_path (str): The absolute path to the file to be checked.
+
+    Returns:
+        bool: True if the file meets size requirements.
+
+    Raises:
+        ValueError: If the file doesn't exist, or if the file size exceeds the maximum
+            allowed size for its type.
+    """
     if not os.path.exists(file_path):
         raise ValueError(f"File not found: {file_path}")
     
@@ -41,7 +55,25 @@ def check_file_size(file_path: str) -> bool:
 
 
 def get_frames(video_path: str, max_images: int) -> list[tuple[Image.Image, float]]:
-    """Extract frames from a video file."""
+    """Extract frames from a video file at regular intervals.
+
+    Opens a video file and extracts frames at evenly distributed intervals to get
+    a representative sample of the video content. Each frame is converted to RGB
+    format and returned as a PIL Image along with its timestamp.
+
+    Args:
+        video_path (str): The absolute path to the video file (.mp4 or .mov).
+        max_images (int): The maximum number of frames to extract from the video.
+            Must be a positive integer.
+
+    Returns:
+        list[tuple[Image.Image, float]]: A list of tuples where each tuple contains
+            an Image.Image object (the extracted frame in RGB format) and a float
+            (the timestamp of the frame in seconds, rounded to 2 decimal places).
+
+    Raises:
+        ValueError: If the video file cannot be opened or if file size validation fails.
+    """
     check_file_size(video_path)
     
     frames: list[tuple[Image.Image, float]] = []
@@ -72,7 +104,26 @@ def get_frames(video_path: str, max_images: int) -> list[tuple[Image.Image, floa
 
 
 def process_video(video_path: str, max_images: int) -> list[dict]:
-    """Process a video file and return formatted content for the model."""
+    """Process a video file and return formatted content for model input.
+
+    Extracts frames from a video file, saves them as temporary PNG files, and
+    formats them into a structure suitable for multimodal model input. Each frame
+    is paired with descriptive text indicating its timestamp.
+
+    Args:
+        video_path (str): The absolute path to the video file to be processed.
+        max_images (int): The maximum number of frames to extract and process.
+
+    Returns:
+        list[dict]: A list of dictionaries representing the processed video content.
+            The structure alternates between text descriptions and image references:
+            {"type": "text", "text": "Frame {timestamp}:"} and
+            {"type": "image", "url": "/path/to/temp/frame.png"}.
+
+    Note:
+        Creates temporary PNG files that are not automatically cleaned up.
+        The caller is responsible for cleanup if needed.
+    """
     result_content = []
     frames = get_frames(video_path, max_images)
     for frame in frames:
@@ -88,7 +139,22 @@ def process_video(video_path: str, max_images: int) -> list[dict]:
 
 
 def extract_pdf_text(pdf_path: str) -> str:
-    """Extract text content from a PDF file."""
+    """Extract text content from a PDF file.
+
+    Opens a PDF file and extracts all readable text content from each page.
+    Pages are numbered and formatted for readability. Empty pages are skipped.
+
+    Args:
+        pdf_path (str): The absolute path to the PDF file to be processed.
+
+    Returns:
+        str: The extracted text content with page numbers and formatting.
+            If no text is found, returns a message indicating no content was found.
+
+    Raises:
+        ValueError: If the file size validation fails or if PDF processing encounters
+            an error that prevents text extraction.
+    """
     check_file_size(pdf_path)
     
     try:
@@ -114,7 +180,23 @@ def extract_pdf_text(pdf_path: str) -> str:
 
 
 def process_user_input(message: dict, max_images: int) -> list[dict]:
-    """Process user input including files and return formatted content for the model."""
+    """Process user input including files and return formatted content for the model.
+
+    Takes a user message that may contain text and file attachments, processes each
+    file according to its type, and returns a structured format suitable for
+    multimodal model input. Handles videos, PDFs, and image files.
+
+    Args:
+        message (dict): A dictionary containing user input with keys:
+            "text" (str) - The user's text message, and
+            "files" (list[str]) - List of file paths attached to the message.
+        max_images (int): Maximum number of frames to extract from video files.
+
+    Returns:
+        list[dict]: A list of dictionaries representing the processed content with
+            types "text" or "image" and corresponding content data. Includes error
+            messages for files that cannot be processed.
+    """
     if not message["files"]:
         return [{"type": "text", "text": message["text"]}]
 
@@ -153,7 +235,26 @@ def process_user_input(message: dict, max_images: int) -> list[dict]:
 
 
 def process_history(history: list[dict]) -> list[dict]:
-    """Process chat history into the format expected by the model."""
+    """Process chat history into the format expected by the model.
+
+    Converts chat history from the UI format into the structured format required
+    by multimodal language models. Groups consecutive user messages and handles
+    different content types (text, images, videos, PDFs) appropriately.
+
+    Args:
+        history (list[dict]): A list of chat history items, where each item contains
+            "role" (str) - either "user" or "assistant", and
+            "content" - the message content (str for text, tuple for files).
+
+    Returns:
+        list[dict]: A list of messages formatted for the model with "role" and
+            "content" keys, where content is a list of dictionaries with "type"
+            and associated data.
+
+    Note:
+        Groups consecutive user messages into a single message. Videos and PDFs
+        in history are replaced with placeholder text to avoid reprocessing.
+    """
     messages = []
     content_buffer = []
 
@@ -189,12 +290,38 @@ def process_history(history: list[dict]) -> list[dict]:
 
 
 def update_custom_prompt(preset_choice: str) -> str:
-    """Update the custom prompt based on preset selection."""
+    """Update the custom prompt based on preset selection.
+
+    Returns the appropriate preset prompt text based on the user's selection.
+    If "Custom Prompt" is selected, returns an empty string to allow manual input.
+
+    Args:
+        preset_choice (str): The name of the selected preset prompt. Should match
+            one of the keys in PRESET_PROMPTS or be "Custom Prompt".
+
+    Returns:
+        str: The preset prompt text corresponding to the selection, or an empty
+            string if "Custom Prompt" is selected or if the preset is not found.
+    """
     if preset_choice == "Custom Prompt":
         return ""
     return PRESET_PROMPTS.get(preset_choice, "")
 
 
 def get_preset_prompts() -> dict[str, str]:
-    """Return the dictionary of preset prompts for the main application."""
+    """Return the dictionary of preset prompts for the main application.
+
+    Provides a copy of the predefined prompt templates that can be used throughout
+    the application. Each preset is designed for a specific use case and contains
+    detailed instructions for the AI model's behavior.
+
+    Returns:
+        dict[str, str]: A dictionary mapping preset names to their prompt texts.
+            Includes prompts for general assistance, document analysis, visual content
+            analysis, educational tutoring, technical review, and creative storytelling.
+
+    Note:
+        Returns a copy of the PRESET_PROMPTS dictionary to prevent accidental
+        modification of the original constants.
+    """
     return PRESET_PROMPTS.copy()
